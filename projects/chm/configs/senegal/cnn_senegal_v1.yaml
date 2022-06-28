@@ -1,0 +1,92 @@
+# Configuration options for CNN Regression
+experiment_type: 2m_chm
+footprint: True
+tiles: True
+
+# Directory configurations
+data_dir: '/explore/nobackup/projects/ilab/projects/AIML_CHM/CNN_CHM/development/senegal'
+model_dir: '/explore/nobackup/projects/ilab/projects/AIML_CHM/CNN_CHM/development/senegal/metadata/models/v1'
+mask_dir: '/explore/nobackup/projects/ilab/projects/Senegal/3sl/products/land_cover/dev/trees.v3'
+mask_preprocessing: True
+mask_postprocessing: False
+
+# ATL08 configurations
+atl08_dir: '/adapt/nobackup/people/pmontesa/userfs02/data/icesat2/atl08.005/senegal_20m'
+atl08_start_year: 2018
+atl08_end_year: 2022
+
+# General configurations
+general_crs: "EPSG:32628"
+
+# WorldView configurations
+wv_data_regex:
+  - '/explore/nobackup/projects/3sl/data/VHR/CAS/M1BS/*.tif'
+  - '/explore/nobackup/projects/3sl/data/VHR/ETZ/M1BS/*.tif'
+  - '/explore/nobackup/projects/3sl/data/VHR/SRV/M1BS/*.tif'
+
+# Data extraction
+tile_size: 32
+label_attribute: 'h_can_20m'
+#label_attribute: 'h_can'
+
+# ----------------------------------------
+# Training
+# ----------------------------------------
+
+# standardization functions: local, global, mixed
+standardization: 'local'
+batch_size: 64
+n_classes: 1
+test_size: 0.20
+learning_rate: 0.0001
+max_epochs: 6000
+patience: 10
+
+augment: True
+crop: False
+seed: 42
+
+#model: "tfc.networks.unet_regression.unet_batchnorm_regression(nclass=1, input_size=(32, 32, 8),maps=[16, 32, 64, 128, 256])"
+model: "tfc.networks.unet_regression.get_model_new()"
+#loss: 'tf.keras.losses.MeanAbsolutePercentageError()'
+#loss: 'tf.keras.losses.MeanSquaredError()'
+#loss: 'tf.keras.losses.MeanSquaredError()'
+loss: 'tf.keras.losses.MeanAbsoluteError()'
+optimizer: tf.keras.optimizers.Adam
+#optimizer: tf.keras.optimizers.RMSprop
+
+metrics:
+  - 'tf.keras.metrics.MeanSquaredError()'
+  #- 'tf.keras.metrics.RootMeanSquaredError()'
+  #- 'tf.keras.metrics.MeanAbsoluteError()'
+  - 'tf.keras.metrics.MeanAbsolutePercentageError()'
+  #- 'tf.keras.metrics.CosineSimilarity(axis=1)'
+
+callbacks:
+  - "tf.keras.callbacks.ModelCheckpoint(save_best_only=True, mode='min', monitor='val_loss', filepath='${model_dir}/{epoch:02d}-{val_loss:.2f}.hdf5')"
+  - "tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=4)"
+  - "tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=False)"
+  - "tf.keras.callbacks.TerminateOnNaN()"
+
+output_bands:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  - 6
+  - 7
+  - 8
+
+# Model Filename
+# model_filename: '/adapt/nobackup/projects/ilab/projects/Senegal/CNN_CHM/model/22-27.97.hdf5'
+# model_filename: '/adapt/nobackup/projects/ilab/projects/Senegal/CNN_CHM/v2/intersection_tiles_evhrtoa/CAS/model/41-0.00.hdf5'
+#model_filename: '/adapt/nobackup/projects/ilab/projects/Senegal/CNN_CHM/v5/models/13-0.01.hdf5'
+#model_filename: '/adapt/nobackup/projects/ilab/projects/Senegal/CNN_CHM/v5/models/17-3.75.hdf5'
+# model_filename: '/adapt/nobackup/projects/ilab/projects/Senegal/CNN_CHM/v5/models/21-3.87.hdf5'
+#model_filename: '/explore/nobackup/projects/ilab/projects/Senegal/CNN_CHM/senegal_20m/v1/models/02-1.75.hdf5'
+model_filename: '/explore/nobackup/projects/ilab/projects/Senegal/CNN_CHM/v5/models/21-3.87.hdf5'
+#inference_regex: '/explore/nobackup/projects/ilab/projects/srlite/input/Serc/WV02_20100304_M1BS_1030010004B9A400-toa.tif'
+inference_regex: '/explore/nobackup/projects/ilab/projects/srlite/input/Serc/*_M1BS_*-toa.tif'
+#inference_regex: '/adapt/nobackup/people/mcarrol2/LCLUC_Senegal/ForKonrad/*_data.tif'
+inference_save_dir: '/explore/nobackup/projects/ilab/projects/Senegal/CNN_CHM/senegal_20m/v1/output/serc'

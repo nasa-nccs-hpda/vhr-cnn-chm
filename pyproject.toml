@@ -1,0 +1,45 @@
+[project]
+name = "vhr-cnn-chm"
+authors = [
+    {name = "Jordan A. Caraballo-Vega", email = "jordan.a.caraballo-vega@nasa.gov"},
+]
+readme = "README.md"
+classifiers = [
+    "License :: OSI Approved :: Apache License",
+]
+requires-python = ">=3.7"
+dynamic = ["version", "description"]
+
+[build-system]
+requires = [
+    "setuptools >= 40.6.0",
+    "setuptools_scm[toml] >= 4, <6",
+    "setuptools_scm_git_archive",
+    "setuptools-git-versioning",
+    "poetry",
+    "wheel",
+    "omegaconf",
+    "segmentation-models",
+    # "git+https://github.com/JanMarcelKezmann/TensorFlow-Advanced-Segmentation-Models.git",
+    "xarray",
+    "rioxarray",
+    "numba"
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+write_to = "vhr_cnn_chm/version.py"
+
+[tool.coverage.run]
+branch = true
+relative_files = true
+source = ['vhr_cnn_chm']
+omit = ['vhr_cnn_chm/version.py']
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 95
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
