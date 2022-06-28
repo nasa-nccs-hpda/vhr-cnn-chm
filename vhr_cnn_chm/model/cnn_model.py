@@ -20,7 +20,7 @@ def get_2d_cnn_tf(input_size=(256, 256, 3), filters=(16, 32, 64), regression=Fal
 
     # loop over the number of filters
     for (i, f) in enumerate(filters):
-        
+
         # if this is the first CONV layer, initialize with input
         if i == 0:
             x = inputs
@@ -117,17 +117,18 @@ def unet_batchnorm_regression(nclass=19, input_size=(256, 256, 8), weight_file=N
     c9 = Conv2D(maps[0], (3, 3), activation='relu', padding='same')(u9)
     c9 = Conv2D(maps[0], (3, 3), activation='relu', padding='same')(c9)
 
-    # actv = 'softmax'
-    # if nclass == 1:
-    #    actv = 'sigmoid'
+    actv = 'softmax'
+    if nclass == 1:
+        actv = 'sigmoid'
 
-    # c10 = Conv2D(nclass, (1, 1), activation=actv, kernel_regularizer=kr)(c9)
+    c10 = Conv2D(nclass, (1, 1), activation=actv, kernel_regularizer=kr)(c9)
     # model = Model(inputs=inputs, outputs=c10, name="UNetBatchNorm")
-    model = Model(inputs=inputs, outputs=c9, name="UNetBatchNormRegression")
+    model = Model(inputs=inputs, outputs=c10, name="UNetBatchNormRegression")
 
     if weight_file:
         model.load_weights(weight_file)
     return model
+
 
 # -----------------------------------------------------------------------------
 # Invoke the main

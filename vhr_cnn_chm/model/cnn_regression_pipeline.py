@@ -24,9 +24,25 @@ from sklearn.metrics import mean_squared_error
 
 from .geoscitools.atl08lib import atl08_io
 from .cnn_model import get_2d_cnn_tf
-# from tensorflow_caney.inference.regression_inference import \
-#    sliding_window_tiler
+
+from tensorflow_caney.config.cnn_config import Config
+from tensorflow_caney.utils.system import seed_everything, set_gpu_strategy
+from tensorflow_caney.utils.system import set_mixed_precision, set_xla
+from tensorflow_caney.utils.data import get_dataset_filenames
+from tensorflow_caney.utils.regression_tools import RegressionDataLoader
+
+from tensorflow_caney.utils.losses import get_loss
+from tensorflow_caney.utils.optimizers import get_optimizer
+from tensorflow_caney.utils.metrics import get_metrics
+from tensorflow_caney.utils.callbacks import get_callbacks
+from tensorflow_caney.utils.model import get_model
 from tensorflow_caney.inference import regression_inference
+
+from tensorflow_caney.networks.unet_regression import unet_batchnorm_regression
+
+from tensorflow.python.keras import losses
+from tensorflow.python.keras import optimizers
+
 
 shapely.speedups.enable()
 
@@ -213,16 +229,37 @@ class CNNRegressionPipeline(object):
 
             # output to raster tile
             scene = Path(poly_row["scene_id"]).stem
-            clipped_data.rio.to_raster(
+
+            # validate size of the tile
+            clipped_data = clipped_data.data
+            clipped_mask = clipped_mask.data
+
+            if clipped_data.shape[1] < self.conf.tile_size \
+                    or clipped_data.shape[2] < self.conf.tile_size:
+                continue
+
+            if clipped_data.min() < -100:
+                continue
+
+            np.save(
                 os.path.join(
-                    output_dir_data, f'{scene}_hcan_{poly_row["h_can"]}.tif'
-                ), compress='LZW', dtype="int16"
-            )
-            clipped_mask.rio.to_raster(
+                    output_dir_data, f'{scene}_hcan_{poly_row["h_can"]}.npy'
+                ), clipped_data)
+            np.save(
                 os.path.join(
-                    output_dir_label, f'{scene}_hcan_{poly_row["h_can"]}.tif'
-                ), compress='LZW', dtype="float32"
-            )
+                    output_dir_label, f'{scene}_hcan_{poly_row["h_can"]}.npy'
+                ), clipped_mask)
+
+            # clipped_data.rio.to_raster(
+            #    os.path.join(
+            #        output_dir_data, f'{scene}_hcan_{poly_row["h_can"]}.tif'
+            #    ), compress='LZW', dtype="int16"
+            # )
+            # clipped_mask.rio.to_raster(
+            #    os.path.join(
+            #        output_dir_label, f'{scene}_hcan_{poly_row["h_can"]}.tif'
+            #    ), compress='LZW', dtype="float32"
+            # )
 
         return
 
@@ -389,61 +426,70 @@ class CNNRegressionPipeline(object):
         """
         Training method for the pipeline.
         """
-        data_dir = '/adapt/nobackup/projects/ilab/projects/Senegal/CNN_CHM/tiles_cas/*.tif'
-        data_filenames = glob.glob(data_dir)
+        logging.info('Starting training stage')
 
-        # get data and labels
-        data_array, labels_df = self.get_data_labels(data_filenames)
-        print(data_array.shape, labels_df.shape)
+        # set data variables for directory management
+        images_dir = os.path.join(self.conf.data_dir, 'image')
+        labels_dir = os.path.join(self.conf.data_dir, 'label')
 
-        # normalize data
-        data_array = data_array / 10000.0
-        #labels_df = labels_df / 25.0
+        # Set and create model directory
+        model_dir = os.path.join(self.conf.model_dir, 'model')
+        os.makedirs(model_dir, exist_ok=True)
 
-        # split data in training and validation
-        split = train_test_split(labels_df, data_array, test_size=0.25, random_state=42)
-        (trainAttrY, testAttrY, trainImagesX, testImagesX) = split
-        print(trainAttrY.shape, testAttrY.shape, trainImagesX.shape, testImagesX.shape)
+        # Set hardware acceleration options
+        gpu_strategy = set_gpu_strategy(self.conf.gpu_devices)
+        set_mixed_precision(self.conf.mixed_precision)
+        set_xla(self.conf.xla)
 
-        model = get_2d_cnn_tf(
-            input_size=(128, 128, 8), filters=(16, 32, 64), regression=True)
-        opt = Adam(learning_rate=1e-3, decay=1e-3 / 200)
+        # Get data and label filenames for training
+        data_filenames = get_dataset_filenames(images_dir)
+        label_filenames = get_dataset_filenames(labels_dir)
+        assert len(data_filenames) == len(label_filenames), \
+            'Number of data and label filenames do not match'
 
-        callbacks = [
-            tf.keras.callbacks.ModelCheckpoint(
-                save_best_only=True, mode='min', monitor='val_loss',
-                filepath='/adapt/nobackup/projects/ilab/projects/Senegal/CNN_CHM/model/{epoch:02d}-{val_loss:.2f}.hdf5'),
-            tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=4),
-            tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-        ]
+        logging.info(
+            f'Data: {len(data_filenames)}, Label: {len(label_filenames)}')
 
-        metrics = [
-            tf.keras.metrics.MeanSquaredError(),
-            tf.keras.metrics.RootMeanSquaredError(),
-            tf.keras.metrics.MeanAbsoluteError(),
-            tf.keras.metrics.MeanAbsolutePercentageError(),
-            tf.keras.metrics.CosineSimilarity(axis=1)
-        ]
-
-        model.compile(
-            loss="mean_absolute_percentage_error", optimizer=opt,
-            metrics=metrics
+        # Set main data loader
+        main_data_loader = RegressionDataLoader(
+            data_filenames, label_filenames, self.conf
         )
 
-        # train the model
+        # Set multi-GPU training strategy
+        with gpu_strategy.scope():
+
+            # Get and compile the model
+            model = get_model(self.conf.model)
+
+            # loss = losses.get('MeanSquaredError')
+            # optimizer = optimizers.get('SGD')
+
+            model.compile(
+                loss=get_loss(self.conf.loss),
+                optimizer=get_optimizer(
+                    self.conf.optimizer)(self.conf.learning_rate),
+                metrics=get_metrics(self.conf.metrics)
+            )
+            model.summary()
+
+        # Fit the model and start training
         model.fit(
-            x=trainImagesX, y=trainAttrY, 
-            validation_data=(testImagesX, testAttrY),
-            epochs=6000,
-            batch_size=32,
-            callbacks=callbacks
+            main_data_loader.train_dataset,
+            validation_data=main_data_loader.val_dataset,
+            epochs=self.conf.max_epochs,
+            steps_per_epoch=main_data_loader.train_steps,
+            validation_steps=main_data_loader.val_steps,
+            callbacks=get_callbacks(self.conf.callbacks)
         )
 
+        # Close multiprocessing Pools from the background
+        # atexit.register(gpu_strategy._extended._collective_ops._pool.close)
+
+        """
         ypred = model.predict(testImagesX)
         print(model.evaluate(testImagesX, testAttrY))
-
         print("MSE: %.4f" % mean_squared_error(testAttrY, ypred))
-
+        """
         return
 
     def predict(self):
@@ -514,21 +560,31 @@ class CNNRegressionPipeline(object):
                 # Remove no-data values to account for edge effects
                 # temporary_tif = image.values
                 temporary_tif = xr.where(image > -100, image, 600)
-                temporary_tif = temporary_tif / 10000.0
+                # temporary_tif = temporary_tif / 10000.0
 
                 prediction = regression_inference.sliding_window_tiler(
                     xraster=temporary_tif,
                     model=model,
+                    n_classes=self.conf.n_classes,
+                    overlap=0.50,
+                    batch_size=self.conf.pred_batch_size,
+                    standardization=self.conf.standardization,
+                    mean=self.conf.mean,
+                    std=self.conf.std,
+                    normalize=self.conf.normalize
                 )
+                print(prediction.min(), prediction.max())
 
-                landcover = rxr.open_rasterio(
-                    '/adapt/nobackup/projects/ilab/projects/Senegal/3sl/products/land_cover/dev/tcbo.v1/CASTest/Tappan01_WV02_20110430_M1BS_103001000A27E100_data.landcover.tif')
-                landcover = np.squeeze(landcover.values)
-                print("UNIQUE LAND COVER", np.unique(landcover))
+                prediction = prediction * 100
 
-                landcover[landcover > 1] = 0
+                # landcover = rxr.open_rasterio(
+                #    '/adapt/nobackup/projects/ilab/projects/Senegal/3sl/products/land_cover/dev/tcbo.v1/CASTest/Tappan01_WV02_20110430_M1BS_103001000A27E100_data.landcover.tif')
+                # landcover = np.squeeze(landcover.values)
+                # print("UNIQUE LAND COVER", np.unique(landcover))
 
-                prediction = prediction * landcover
+                # landcover[landcover > 1] = 0
+
+                # prediction = prediction * landcover
 
                 #    overlap=0.20,
                 #    batch_size=conf.pred_batch_size,
@@ -564,13 +620,13 @@ class CNNRegressionPipeline(object):
                 # Save COG file to disk
                 prediction.rio.to_raster(
                     output_filename, BIGTIFF="IF_SAFER", compress='LZW',
-                    num_threads='all_cpus'#, driver='COG'
+                    num_threads='all_cpus'  # , driver='COG'
                 )
 
                 del prediction
 
                 # delete lock file
-                #os.remove(lock_filename)
+                # os.remove(lock_filename)
 
                 logging.info(f'Finished processing {output_filename}')
                 logging.info(f"{(time.time() - start_time)/60} min")

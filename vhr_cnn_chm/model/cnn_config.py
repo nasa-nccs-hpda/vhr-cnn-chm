@@ -97,7 +97,6 @@ class Config:
     inference_treshold: Optional[float] = 0.5
     pred_batch_size: Optional[int] = 128
 
-
     atl08_dir: str = 'input'
     intersection_output_dir: str = 'output'
     tiles_output_dir: str = 'output_tiles'
@@ -111,6 +110,7 @@ class Config:
         default_factory=lambda: [])
 
     landcover_directory: Optional[str] = None
+    crop: bool = True
 
 
 # -----------------------------------------------------------------------------
