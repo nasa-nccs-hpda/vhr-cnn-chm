@@ -27,6 +27,10 @@ from .geoscitools.atl08lib import atl08_io
 
 # from tensorflow_caney.config.cnn_config import Config
 from tensorflow_caney.utils.system import set_gpu_strategy
+from .cnn_model import get_2d_cnn_tf
+
+from tensorflow_caney.config.cnn_config import Config
+from tensorflow_caney.utils.system import seed_everything, set_gpu_strategy
 from tensorflow_caney.utils.system import set_mixed_precision, set_xla
 from tensorflow_caney.utils.data import get_dataset_filenames
 from tensorflow_caney.utils.regression_tools import RegressionDataLoader
@@ -43,6 +47,10 @@ from tensorflow_caney.inference import regression_inference
 
 # from tensorflow.python.keras import losses
 # from tensorflow.python.keras import optimizers
+from tensorflow_caney.networks.unet_regression import unet_batchnorm_regression
+
+from tensorflow.python.keras import losses
+from tensorflow.python.keras import optimizers
 
 
 shapely.speedups.enable()
@@ -293,6 +301,7 @@ class CNNRegressionPipeline(object):
             # output to raster tile
             scene = Path(poly_row["scene_id"]).stem
 
+
             np.save(
                 os.path.join(
                     output_dir_data, f'{scene}_hcan_{h_can}.npy'
@@ -300,6 +309,25 @@ class CNNRegressionPipeline(object):
             np.save(
                 os.path.join(
                     output_dir_label, f'{scene}_hcan_{h_can}.npy'
+
+            # validate size of the tile
+            clipped_data = clipped_data.data
+            clipped_mask = clipped_mask.data
+
+            if clipped_data.shape[1] < self.conf.tile_size \
+                    or clipped_data.shape[2] < self.conf.tile_size:
+                continue
+
+            if clipped_data.min() < -100:
+                continue
+
+            np.save(
+                os.path.join(
+                    output_dir_data, f'{scene}_hcan_{poly_row["h_can"]}.npy'
+                ), clipped_data)
+            np.save(
+                os.path.join(
+                    output_dir_label, f'{scene}_hcan_{poly_row["h_can"]}.npy'
                 ), clipped_mask)
 
             # clipped_data.rio.to_raster(
@@ -653,6 +681,20 @@ class CNNRegressionPipeline(object):
                 landcover[landcover > 1] = 0
                 prediction = prediction * landcover
                 """
+                    normalize=self.conf.normalize
+                )
+                print(prediction.min(), prediction.max())
+
+                prediction = prediction * 100
+
+                # landcover = rxr.open_rasterio(
+                #    '/adapt/nobackup/projects/ilab/projects/Senegal/3sl/products/land_cover/dev/tcbo.v1/CASTest/Tappan01_WV02_20110430_M1BS_103001000A27E100_data.landcover.tif')
+                # landcover = np.squeeze(landcover.values)
+                # print("UNIQUE LAND COVER", np.unique(landcover))
+
+                # landcover[landcover > 1] = 0
+
+                # prediction = prediction * landcover
 
                 #    overlap=0.20,
                 #    batch_size=conf.pred_batch_size,
@@ -690,6 +732,8 @@ class CNNRegressionPipeline(object):
                 prediction.rio.to_raster(
                     output_filename, BIGTIFF="IF_SAFER", compress='LZW',
                     num_threads='all_cpus', dtype='float32'#, driver='COG'
+
+                    num_threads='all_cpus'  # , driver='COG'
                 )
                 del prediction
 
