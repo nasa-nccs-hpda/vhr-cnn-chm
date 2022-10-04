@@ -1,17 +1,18 @@
 # Configuration options for CNN Regression
 experiment_type: 2m_chm
 footprint: True
-tiles: True
+tiles: False
 
 # Directory configurations
-data_dir: '/explore/nobackup/projects/ilab/projects/AIML_CHM/CNN_CHM/development/senegal'
+data_dir: '/explore/nobackup/projects/ilab/projects/AIML_CHM/CNN_CHM/development/howland'
 model_dir: '/explore/nobackup/projects/ilab/projects/AIML_CHM/CNN_CHM/development/senegal/metadata/models/v1'
 mask_dir: '/explore/nobackup/projects/ilab/projects/Senegal/3sl/products/land_cover/dev/trees.v3'
+cloudmask_dir: '/explore/nobackup/projects/3sl/products/cloudmask/v1'
 mask_preprocessing: True
 mask_postprocessing: False
 
 # ATL08 configurations
-atl08_dir: '/adapt/nobackup/people/pmontesa/userfs02/data/icesat2/atl08.005/senegal_20m'
+atl08_dir: '/explore/nobackup/projects/ilab/projects/AIML_CHM/CNN_CHM/labels/atl08.005/howland'
 atl08_start_year: 2018
 atl08_end_year: 2022
 
@@ -20,14 +21,12 @@ general_crs: "EPSG:32628"
 
 # WorldView configurations
 wv_data_regex:
-  - '/explore/nobackup/projects/3sl/data/VHR/CAS/M1BS/*.tif'
-  - '/explore/nobackup/projects/3sl/data/VHR/ETZ/M1BS/*.tif'
-  - '/explore/nobackup/projects/3sl/data/VHR/SRV/M1BS/*.tif'
+  - '/explore/nobackup/projects/ilab/projects/AIML_CHM/CNN_CHM/data/WorldView/HowlandTraining/5-toas/*M1BS*.tif'
 
 # Data extraction
-tile_size: 32
-#label_attribute: 'h_can_20m'
-label_attribute: 'h_can'
+tile_size: 64
+label_attribute: 'h_can_20m'
+#label_attribute: 'h_can'
 
 # ----------------------------------------
 # Training

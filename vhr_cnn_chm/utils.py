@@ -232,59 +232,6 @@ def filter_polygon_in_raster(filename, atl08_gdf, output_dir):
         )
     except ValueError:
         return
-    #print(join.shape)
-    #print(join['y'].unique(), join['wv_year'].unique())
-    #print(str(polygon_row.iloc[0]['scene_id']))
-    #join.to_file(
-    #    os.path.join(
-    #        output_dir, f"{Path(polygon_row['scene_id']).stem}.gpkg"),
-    #    driver='GPKG', layer='intersection'
-    #)
-    """
-    # get polygon row metadata, get indices of points within intersection
-    # _, polygon_row = polygon_row
-    points_mask = atl08_gdf['geometry'].within(
-        polygon_row['geometry'])
-    points_mask = points_mask.to_frame(name='IN_POLYGON')
-    points_mask = points_mask.index[
-        points_mask['IN_POLYGON'] == True].tolist()
-
-    if points_mask:
-
-        # localize the list of indices with intersection points
-        points_mask = atl08_gdf.loc[points_mask]
-        points_mask = points_mask.assign(
-            **{
-                'scene_id': polygon_row['scene_id'],
-                'study_area': polygon_row['study_area'],
-                'wv_year': polygon_row['wv_year'],
-                'wv_month': polygon_row['wv_month']
-            }
-        )
-
-        # filter by year
-        points_mask = points_mask[
-            points_mask['y'] == points_mask['wv_year']]
-
-        # filter by month
-        # points_mask = points_mask[
-        #    points_mask['m'] == points_mask['wv_month']]
-
-        # set output_dir and create directory
-        output_dir = os.path.join(
-            output_dir, polygon_row['study_area'])
-        os.makedirs(output_dir, exist_ok=True)
-
-        # save geopackage file within the output_dir
-        try:
-            points_mask.to_file(
-                os.path.join(
-                    output_dir, f"{Path(polygon_row['scene_id']).stem}.gpkg"),
-                driver='GPKG', layer='intersection'
-            )
-        except ValueError:
-            return
-    """
     return
 
 
@@ -305,7 +252,7 @@ def filter_polygon_in_raster_parallel(
     p.starmap(
         filter_polygon_in_raster,
         zip(
-            wv_evhr_gdf, #  wv_evhr_gdf.iterrows(),
+            wv_evhr_gdf,
             repeat(atl08_gdf),
             repeat(output_dir)
         )
