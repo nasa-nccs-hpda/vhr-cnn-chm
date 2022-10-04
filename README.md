@@ -8,6 +8,10 @@ Very high-resolution CNN-based CHM
 export PYTHONPATH="/adapt/nobackup/people/jacaraba/development/tensorflow-caney:/adapt/nobackup/people/jacaraba/development/vhr-cnn-chm"
 ```
 
+singularity exec --nv -B /lscratch,/explore/nobackup/projects/ilab,/explore/nobackup/people /explore/nobackup/projects/ilab/containers/tensorflow-caney python /explore/nobackup/people/jacaraba/development/vhr-cnn-chm/projects/chm/scripts/preprocess.py -c /explore/nobackup/people/jacaraba/development/vhr-cnn-chm/projects/chm/configs/tanana/cnn_tanana_v1.yaml 
+
+singularity shell --nv -B /lscratch,/explore/nobackup/projects/ilab,/explore/nobackup/people /explore/nobackup/projects/ilab/containers/tensorflow-cane
+
 ## Experiments
 
 ### Experiment #1
