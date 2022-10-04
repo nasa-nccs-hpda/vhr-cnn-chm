@@ -10,9 +10,9 @@ import omegaconf
 from glob import glob
 
 from vhr_cnn_chm.config import CHMConfig as Config
-from vhr_cnn_chm.utils import get_atl08_gdf, get_wv_evhr_gdf, \
-    filter_gdf_by_list, filter_polygon_in_raster_parallel, \
-    extract_tiles_parallel
+from vhr_cnn_chm.utils import get_atl08_gdf, \
+    filter_polygon_in_raster_parallel, \
+    extract_tiles_parallel, get_filenames, filter_evhr_year_range
 from tensorflow_caney.utils.system import seed_everything
 
 
@@ -35,10 +35,11 @@ def run(args, conf) -> None:
     labels_output_dir = os.path.join(conf.data_dir, 'labels')
 
     # create output directories
-    for odir in [
+    for out_dir in [
             images_output_dir, labels_output_dir, intersection_output_dir]:
-        os.makedirs(odir, exist_ok=True)
+        os.makedirs(out_dir, exist_ok=True)
 
+    # generate WorldView vs. ICESAT-2 footprint (geopackages with matches)
     if conf.footprint:
 
         # get ATL08 dataframe points
@@ -46,33 +47,49 @@ def run(args, conf) -> None:
             conf.atl08_dir,
             conf.atl08_start_year,
             conf.atl08_end_year,
-            crs=conf.general_crs
         )
         logging.info(f'Load ATL08 GDF files, {atl08_gdf.shape[0]} rows.')
 
-        # some EDA information
-        logging.info(f'min: {atl08_gdf[conf.label_attribute].min()}')
-        logging.info(f'max: {atl08_gdf[conf.label_attribute].max()}')
-        logging.info(f'mean: {atl08_gdf[conf.label_attribute].mean()}')
-
-        # Read WorldView footprints database
-        wv_evhr_gdf = get_wv_evhr_gdf(
-            conf.wv_data_regex, crs=conf.general_crs)
-        logging.info(f'Load WorldView GDF, {wv_evhr_gdf.shape[0]} rows.')
-
-        # Filter GDF by year range
-        wv_evhr_gdf = filter_gdf_by_list(
-            wv_evhr_gdf, 'wv_year', list(
-                range(conf.atl08_start_year, conf.atl08_end_year))
-        )
+        # some EDA information to catch non-correct labels
         logging.info(
-            f'Filter WorldView GDF by year, {wv_evhr_gdf.shape[0]} rows.')
+            f'{conf.label_attribute} - ' +
+            f'min: {atl08_gdf[conf.label_attribute].min()}, ' +
+            f'max: {atl08_gdf[conf.label_attribute].max()}, ' +
+            f'mean: {atl08_gdf[conf.label_attribute].mean()}'
+        )
+
+        # filter labels to catch correct heights, not tree is higher than 250m
+        atl08_gdf = atl08_gdf.loc[atl08_gdf[conf.label_attribute] < 250]
+
+        logging.info(
+            f'{conf.label_attribute} - ' +
+            f'min: {atl08_gdf[conf.label_attribute].min()}, ' +
+            f'max: {atl08_gdf[conf.label_attribute].max()}, ' +
+            f'mean: {atl08_gdf[conf.label_attribute].mean()}'
+        )
+        logging.info(f'ATL08 without no-data, {atl08_gdf.shape[0]} rows.')
+
+        # Get WorldView filenames
+        wv_evhr_filenames = get_filenames(conf.wv_data_regex)
+        logging.info(f'WorldView, {len(wv_evhr_filenames)} files.')
+
+        # Filter list by year range
+        wv_evhr_filenames = filter_evhr_year_range(
+            wv_evhr_filenames, conf.atl08_start_year, conf.atl08_end_year)
+        logging.info(f'WorldView, {len(wv_evhr_filenames)} files.')
 
         # Intersection of the two GDBs, output geopackages files
         filter_polygon_in_raster_parallel(
-            wv_evhr_gdf, atl08_gdf, intersection_output_dir
+            wv_evhr_filenames, atl08_gdf, intersection_output_dir
         )
 
+        # Gather intersection filenames
+        intersection_files = glob(
+            os.path.join(intersection_output_dir, '*', '*.gpkg'))
+        logging.info(
+            f'{len(intersection_files)} WorldView matches saved ' +
+            f'in {intersection_output_dir}.'
+        )
     else:
         logging.info(
             'Skipping WV-ATL08 intersection since it has been done.')
@@ -82,19 +99,19 @@ def run(args, conf) -> None:
     if conf.tiles:
 
         # list dataset filenames from disk
-        intersection_filenames = glob(
-            os.path.join(intersection_output_dir, '*', '*.gpkg'))
+        intersection_filenames = sorted(glob(
+            os.path.join(intersection_output_dir, '*', '*.gpkg')))
         assert len(intersection_filenames) > 0, \
             f"No gpkg files found under {intersection_output_dir}."
 
         extract_tiles_parallel(
-            intersection_filenames, conf.tile_size,
+            intersection_filenames[:40], conf.tile_size,
+            conf.input_bands, conf.output_bands,
             images_output_dir, labels_output_dir, conf.label_attribute,
-            conf.mask_dir, conf.mask_preprocessing
+            conf.mask_dir, conf.cloudmask_dir, conf.mask_preprocessing
         )
 
     logging.info('Done with preprocessing stage')
-
     return
 
 

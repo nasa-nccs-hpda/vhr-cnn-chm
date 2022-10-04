@@ -12,6 +12,7 @@ class CHMConfig(Config):
     general_crs: str = 'EPSG:32628'
     wv_data_regex: List[str] = field(default_factory=lambda: [])
     mask_dir: str = 'trees'
+    cloudmask_dir: str = 'clouds'
     mask_preprocessing: bool = True
     mask_postprocessing: bool = False
     crop: bool = True

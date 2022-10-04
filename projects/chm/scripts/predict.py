@@ -1,161 +1,284 @@
-    def predict(self):
-        """
-        Prediction method for the pipeline.
-        """
-        logging.info("Full scene prediction, smoothing via tiles")
+# --------------------------------------------------------------------------
+# Prediction of vhr data. This assumes you provide
+# a configuration file with required parameters and files.
+# --------------------------------------------------------------------------
+import os
+import sys
+import time
+import logging
+import argparse
+import omegaconf
+import rasterio
+from glob import glob
+from pathlib import Path
 
-        # questions, how to smooth between locations for better regression
-        # weighted prediction based on landcover input
+import numpy as np
+import xarray as xr
+import rioxarray as rxr
 
-        logging.info('Starting prediction stage')
+from vhr_cnn_chm.config import CHMConfig as Config
+from tensorflow_caney.utils.system import seed_everything
+from tensorflow_caney.utils.model import load_model
 
-        # Set and create model directory
-        os.makedirs(self.conf.inference_save_dir, exist_ok=True)
+from tensorflow_caney.utils.data import modify_bands, \
+    get_mean_std_metadata
+from tensorflow_caney.utils import indices
+from tensorflow_caney.inference import regression_inference
 
-        # Load model
-        model = tf.keras.models.load_model(self.conf.model_filename)
-        model.summary()
 
-        # Gather filenames to predict
-        data_filenames = sorted(glob.glob(self.conf.inference_regex))
-        assert len(data_filenames) > 0, \
-            f'No files under {self.conf.inference_regex}.'
-        logging.info(f'{len(data_filenames)} files to predict')
+# ---------------------------------------------------------------------------
+# script train.py
+# ---------------------------------------------------------------------------
+def run(
+            args: argparse.Namespace,
+            conf: omegaconf.dictconfig.DictConfig
+        ) -> None:
+    """
+    Run training steps.
+    Possible additions to this process:
+        - TBD
+    """
+    logging.info('Starting prediction stage')
 
-        # iterate files, create lock file to avoid predicting the same file
-        for filename in data_filenames:
+    # Load model for inference
+    model = load_model(
+        model_filename=conf.model_filename,
+        model_dir=os.path.join(conf.data_dir, 'model')
+    )
 
-            start_time = time.time()
+    # Retrieve mean and std, there should be a more ideal place
+    # TEMPORARY FILE FOR METADATA, TIRED AND NEED TO LEAVE THIS RUNNING
+    # CHANGE TO MODEL_DIR IN THE OTHER SCRIPTS
+    if conf.standardization in ["global", "mixed"]:
+        mean, std = get_mean_std_metadata(
+            os.path.join(
+                conf.data_dir, f'mean-std-{conf.experiment_name}.csv')
+        )
+        logging.info(f'Mean: {mean}, Std: {std}')
+    else:
+        mean = None
+        std = None
+
+    # Gather filenames to predict
+    data_filenames = []
+    if len(conf.inference_regex_list) > 0:
+        for regex in conf.inference_regex_list:
+            data_filenames.extend(glob(regex))
+    else:
+        data_filenames = glob(conf.inference_regex)
+
+    assert len(data_filenames) > 0, \
+        f'No files under {conf.inference_regex} or {conf.inference_regex_list}'
+    logging.info(f'{len(data_filenames)} files to predict')
+
+    # iterate files, create lock file to avoid predicting the same file
+    for filename in sorted(data_filenames):
+
+        start_time = time.time()
+
+        if len(conf.inference_regex_list) > 0:
+
+            # get location based output directory
+            output_directory = os.path.join(
+                conf.inference_save_dir,
+                filename.split('/')[-3])
 
             # output filename to save prediction on
             output_filename = os.path.join(
-                self.conf.inference_save_dir,
-                f'{Path(filename).stem}.{self.conf.experiment_type}.tif'
+                output_directory,
+                f'{Path(filename).stem}.{conf.experiment_type}.tif')
+
+            # Set and create model directory
+            os.makedirs(output_directory, exist_ok=True)
+
+        else:
+
+            # output filename to save prediction on
+            output_filename = os.path.join(
+                conf.inference_save_dir,
+                f'{Path(filename).stem}.{conf.experiment_type}.tif'
             )
 
-            # lock file for multi-node, multi-processing
-            lock_filename = f'{output_filename}.lock'
+            # Set and create model directory
+            os.makedirs(conf.inference_save_dir, exist_ok=True)
 
-            # predict only if file does not exist and no lock file
-            if not os.path.isfile(output_filename) and \
-                    not os.path.isfile(lock_filename):
+        # lock file for multi-node, multi-processing
+        lock_filename = f'{output_filename}.lock'
+
+        # predict only if file does not exist and no lock file
+        if not os.path.isfile(output_filename) and \
+                not os.path.isfile(lock_filename):
+
+            try:
 
                 logging.info(f'Starting to predict {filename}')
 
-                # create lock file - remove while testing
-                # open(lock_filename, 'w').close()
+                # create lock file
+                open(lock_filename, 'w').close()
 
                 # open filename
                 image = rxr.open_rasterio(filename)
                 logging.info(f'Prediction shape: {image.shape}')
 
-                # Calculate indices and append to the original raster
-                # image = indices.add_indices(
-                #    xraster=image, input_bands=self.conf.input_bands,
-                #    output_bands=self.conf.output_bands)
+            except rasterio.errors.RasterioIOError:
+                logging.info(f'Skipped {filename}, probably corrupted.')
+                continue
 
-                # Modify the bands to match inference details
-                # image = modify_bands(
-                #    xraster=image, input_bands=self.conf.input_bands,
-                #    output_bands=self.conf.output_bands)
-                # logging.info(f'Prediction shape after modf: {image.shape}')
+            # Calculate indices and append to the original raster
+            image = indices.add_indices(
+                xraster=image, input_bands=conf.input_bands,
+                output_bands=conf.output_bands)
 
-                # Transpose the image for channel last format
-                image = image.transpose("y", "x", "band")
+            # Modify the bands to match inference details
+            image = modify_bands(
+                xraster=image, input_bands=conf.input_bands,
+                output_bands=conf.output_bands)
+            logging.info(f'Prediction shape after modf: {image.shape}')
 
-                # Remove no-data values to account for edge effects
-                # temporary_tif = image.values
-                temporary_tif = xr.where(image > -100, image, 600)
-                # temporary_tif = temporary_tif / 10000.0
+            # Transpose the image for channel last format
+            image = image.transpose("y", "x", "band")
 
-                prediction = regression_inference.sliding_window_tiler(
-                    xraster=temporary_tif,
-                    model=model,
-                    n_classes=self.conf.n_classes,
-                    overlap=0.50,
-                    batch_size=self.conf.pred_batch_size,
-                    standardization=self.conf.standardization,
-                    mean=self.conf.mean,
-                    std=self.conf.std,
-                    normalize=self.conf.normalize,
-                    window='boxcar'
-                )
-                print(prediction.min(), prediction.max())
+            # Remove no-data values to account for edge effects
+            # temporary_tif = image.values
+            temporary_tif = xr.where(image > -100, image, 600)
 
-                #prediction = prediction * 100
+            # Rescale the image
+            # temporary_tif = temporary_tif
 
-                # apply landcover postprocessing mask to output
+            # prediction = inference.sliding_window_tiler_multiclass(
+            #    xraster=temporary_tif,
+            #    model=model,
+            #    n_classes=conf.n_classes,
+            #    overlap=conf.inference_overlap,
+            #    batch_size=conf.pred_batch_size,
+            #    standardization=conf.standardization,
+            #    mean=mean,
+            #    std=std,
+            #    normalize=conf.normalize,
+            #    rescale=conf.rescale
+            # )
+
+            prediction = regression_inference.sliding_window_tiler(
+                xraster=temporary_tif,
+                model=model,
+                n_classes=conf.n_classes,
+                overlap=conf.inference_overlap,
+                batch_size=conf.pred_batch_size,
+                standardization=conf.standardization,
+                mean=mean,
+                std=std,
+                normalize=conf.normalize,
+                window='boxcar'
+            )
+            print(prediction.min(), prediction.max())
+            # prediction = prediction * 100
+
+            # Drop image band to allow for a merge of mask
+            image = image.drop(
+                dim="band",
+                labels=image.coords["band"].values[1:],
+                drop=True
+            )
+
+            # Get metadata to save raster
+            prediction = xr.DataArray(
+                np.expand_dims(prediction, axis=-1),
+                name=conf.experiment_type,
+                coords=image.coords,
+                dims=image.dims,
+                attrs=image.attrs
+            )
+
+            # TRYING TO IMPROVE RENDERING
+            # prediction = prediction + 1
+
+            prediction.attrs['long_name'] = (conf.experiment_type)
+            prediction.attrs['model_name'] = (conf.model_filename)
+            prediction = prediction.transpose("band", "y", "x")
+
+            # Set nodata values on mask
+            nodata = prediction.rio.nodata
+            prediction = prediction.where(image != nodata)
+            prediction.rio.write_nodata(
+                conf.prediction_nodata, encoded=True, inplace=True)
+
+            # TODO: ADD CLOUDMASKING STEP HERE
+            # REMOVE CLOUDS USING THE CURRENT MASK
+
+            # Save COG file to disk
+            prediction.rio.to_raster(
+                output_filename,
+                BIGTIFF="IF_SAFER",
+                compress=conf.prediction_compress,
+                # num_threads='all_cpus',
+                driver=conf.prediction_driver,
+                dtype=conf.prediction_dtype
+            )
+            del prediction
+
+            # delete lock file
+            try:
+                os.remove(lock_filename)
+            except FileNotFoundError:
+                logging.info(f'Lock file not found {lock_filename}')
+                continue
+
+            logging.info(f'Finished processing {output_filename}')
+            logging.info(f"{(time.time() - start_time)/60} min")
+
+        # This is the case where the prediction was already saved
+        else:
+            logging.info(f'{output_filename} already predicted.')
+    return
 
 
-                #landcover = rxr.open_rasterio(
-                #    '/adapt/nobackup/projects/ilab/projects/Senegal/3sl/products/land_cover/dev/tcbo.v1/CASTest/Tappan01_WV02_20110430_M1BS_103001000A27E100_data.landcover.tif')
-                #landcover = np.squeeze(landcover.values)
-                #print("UNIQUE LAND COVER", np.unique(landcover))
-                #landcover[landcover > 1] = 0
-                #prediction = prediction * landcover
+def main() -> None:
 
-                """
-                # output filename to save prediction on
-                landcover_filename = os.path.join(
-                    '/adapt/nobackup/projects/ilab/projects/Senegal/3sl/products/land_cover/dev/trees.v2/Tappan',
-                    f'{Path(filename).stem}.trees.tif'
-                )
-                landcover = rxr.open_rasterio(landcover_filename)
-                landcover = np.squeeze(landcover.values)
-                landcover[landcover > 1] = 0
-                prediction = prediction * landcover
-                """
+    # Process command-line args.
+    desc = 'Use this application to map LCLUC in Senegal using WV data.'
+    parser = argparse.ArgumentParser(description=desc)
 
-                #    overlap=0.20,
-                #    batch_size=conf.pred_batch_size,
-                #    standardization=conf.standardization
-                # )
-                # logging.info(f'Prediction unique values {np.unique(prediction)}')
-                # logging.info(f'Done with prediction')
+    parser.add_argument('-c',
+                        '--config-file',
+                        type=str,
+                        required=True,
+                        dest='config_file',
+                        help='Path to the configuration file')
 
-                # Drop image band to allow for a merge of mask
-                image = image.drop(
-                    dim="band",
-                    labels=image.coords["band"].values[1:],
-                    drop=True
-                )
+    args = parser.parse_args()
 
-                # Get metadata to save raster
-                prediction = xr.DataArray(
-                    np.expand_dims(prediction, axis=-1),
-                    name=self.conf.experiment_type,
-                    coords=image.coords,
-                    dims=image.dims,
-                    attrs=image.attrs
-                )
-                prediction.attrs['long_name'] = (self.conf.experiment_type)
-                prediction.attrs['model_name'] = (self.conf.model_filename)
-                prediction = prediction.transpose("band", "y", "x")
+    # Logging
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(logging.INFO)
+    formatter = logging.Formatter(
+        "%(asctime)s; %(levelname)s; %(message)s", "%Y-%m-%d %H:%M:%S"
+    )
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
 
-                # Set nodata values on mask
-                nodata = prediction.rio.nodata
-                prediction = prediction.where(image != nodata)
-                # prediction.rio.write_nodata(nodata, encoded=True, inplace=True)
-                prediction.rio.write_nodata(255, encoded=True, inplace=True)
+    # Configuration file intialization
+    schema = omegaconf.OmegaConf.structured(Config)
+    conf = omegaconf.OmegaConf.load(args.config_file)
+    try:
+        conf = omegaconf.OmegaConf.merge(schema, conf)
+    except BaseException as err:
+        sys.exit(f"ERROR: {err}")
 
-                # Save COG file to disk
-                prediction.rio.to_raster(
-                    output_filename, BIGTIFF="IF_SAFER", compress='LZW',
-                    num_threads='all_cpus', dtype='float32'#, driver='COG'
-                )
-                del prediction
+    # Seed everything
+    seed_everything(conf.seed)
 
-                # delete lock file
-                # os.remove(lock_filename)
+    # Call run for preprocessing steps
+    run(args, conf)
 
-                logging.info(f'Finished processing {output_filename}')
-                logging.info(f"{(time.time() - start_time)/60} min")
+    return
 
-            # This is the case where the prediction was already saved
-            else:
-                logging.info(f'{output_filename} already predicted.')
 
-        # Close multiprocessing Pools from the background
-        # atexit.register(gpu_strategy._extended._collective_ops._pool.close)
+# -------------------------------------------------------------------------------
+# main
+# -------------------------------------------------------------------------------
 
-        return
+if __name__ == "__main__":
+
+    main()
