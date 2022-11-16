@@ -8,29 +8,55 @@ Very high-resolution CNN-based CHM
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Coverage Status](https://coveralls.io/repos/github/nasa-nccs-hpda/vhr-cnn-chm/badge.svg?branch=main)](https://coveralls.io/github/nasa-nccs-hpda/vhr-cnn-chm?branch=main)
 
+## Objectives
+
+- Library to match ATL08 and WorldView inputs.
+- Machine Learning and Deep Learning regression to produce canopy height models.
+- Postprocessing methods for regression output smoothing.
+- Validation with GEDI and GLiHT data sources.
+
+## Installation
+
+The following library is intended to be used to accelerate the development of data science products
+for remote sensing satellite imagery, or any other applications. tensorflow-caney can be installed
+by itself, but instructions for installing the full environments are listed under the requirements
+directory so projects, examples, and notebooks can be run.
+
+Note: PIP installations do not include CUDA libraries for GPU support. Make sure NVIDIA libraries
+are installed locally in the system if not using conda/mamba.
+
+```bash
+module load singularity
+singularity build --sandbox tensorflow-caney docker://nasanccs/tensorflow-caney:latest
+```
+
+Example run (assuming you exposed your environment variables into the container):
+
+```bash
+singularity exec --nv -B /lscratch,/explore/nobackup/projects/ilab,/explore/nobackup/people /explore/nobackup/projects/ilab/containers/tensorflow-caney-22.11 python /explore/nobackup/people/jacaraba/development/vhr-cnn-chm/projects/chm/scripts/preprocess.py -c /explore/nobackup/people/jacaraba/development/vhr-cnn-chm/projects/chm/configs/tanana/cnn_tanana_v1.yaml 
+```
+
 ## Configuration
+
+This step will change in the future, but you will need to clone both the [tensorflow-caney](https://github.com/nasa-nccs-hpda/tensorflow-caney) and [vhr-cnn-chm](https://github.com/nasa-nccs-hpda/vhr-cnn-chm) repositories to use the methods included in them. These will be migrated to PIP files in the short future.
 
 ```bash
 export PYTHONPATH="/adapt/nobackup/people/jacaraba/development/tensorflow-caney:/adapt/nobackup/people/jacaraba/development/vhr-cnn-chm"
 ```
 
-singularity exec --nv -B /lscratch,/explore/nobackup/projects/ilab,/explore/nobackup/people /explore/nobackup/projects/ilab/containers/tensorflow-caney python /explore/nobackup/people/jacaraba/development/vhr-cnn-chm/projects/chm/scripts/preprocess.py -c /explore/nobackup/people/jacaraba/development/vhr-cnn-chm/projects/chm/configs/tanana/cnn_tanana_v1.yaml 
+## Why CNNs?
 
-singularity shell --nv -B /lscratch,/explore/nobackup/projects/ilab,/explore/nobackup/people /explore/nobackup/projects/ilab/containers/tensorflow-cane
+CNNs have additional spatial abilities that traditional algorithms are not capable of.
 
-## Experiments
+## Contributors
 
-### Experiment #1
+- Jordan Alexis Caraballo-Vega, jordan.a.caraballo-vega@nasa.gov
+- Caleb Spradlin, caleb.s.spradlin@nasa.gov
 
-CNN to output a single value per tile, this allows for a coarse result.
+## Contributing
 
-### Experiment #2
+Please see our [guide for contributing to tensorflow-caney](CONTRIBUTING.md).
 
-CNN to output a set of pixel-wise output. The input labels are the average h_can
-value for that tile in locations where trees are present.
+## References
 
-### Experiment #3
-
-CNN to output a set of pixel-wise output. The input labels are the same h_can
-value for that tile in every location, then a tree mask is multiplied to the tile
-in the postprocessing.
+- [TensorFlow Advanced Segmentation Models](https://github.com/JanMarcelKezmann/TensorFlow-Advanced-Segmentation-Models)
