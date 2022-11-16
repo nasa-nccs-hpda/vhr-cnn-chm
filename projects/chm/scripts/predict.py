@@ -47,8 +47,6 @@ def run(
     )
 
     # Retrieve mean and std, there should be a more ideal place
-    # TEMPORARY FILE FOR METADATA, TIRED AND NEED TO LEAVE THIS RUNNING
-    # CHANGE TO MODEL_DIR IN THE OTHER SCRIPTS
     if conf.standardization in ["global", "mixed"]:
         mean, std = get_mean_std_metadata(
             os.path.join(
@@ -139,24 +137,7 @@ def run(
             image = image.transpose("y", "x", "band")
 
             # Remove no-data values to account for edge effects
-            # temporary_tif = image.values
             temporary_tif = xr.where(image > -100, image, 600)
-
-            # Rescale the image
-            # temporary_tif = temporary_tif
-
-            # prediction = inference.sliding_window_tiler_multiclass(
-            #    xraster=temporary_tif,
-            #    model=model,
-            #    n_classes=conf.n_classes,
-            #    overlap=conf.inference_overlap,
-            #    batch_size=conf.pred_batch_size,
-            #    standardization=conf.standardization,
-            #    mean=mean,
-            #    std=std,
-            #    normalize=conf.normalize,
-            #    rescale=conf.rescale
-            # )
 
             prediction = regression_inference.sliding_window_tiler(
                 xraster=temporary_tif,
@@ -168,16 +149,13 @@ def run(
                 mean=mean,
                 std=std,
                 normalize=conf.normalize,
-                window='boxcar'
+                window='triang'
             )
-            print(prediction.min(), prediction.max())
-            # prediction = prediction * 100
 
             # Drop image band to allow for a merge of mask
             image = image.drop(
                 dim="band",
                 labels=image.coords["band"].values[1:],
-                drop=True
             )
 
             # Get metadata to save raster
@@ -188,9 +166,6 @@ def run(
                 dims=image.dims,
                 attrs=image.attrs
             )
-
-            # TRYING TO IMPROVE RENDERING
-            # prediction = prediction + 1
 
             prediction.attrs['long_name'] = (conf.experiment_type)
             prediction.attrs['model_name'] = (conf.model_filename)
@@ -205,7 +180,7 @@ def run(
             # TODO: ADD CLOUDMASKING STEP HERE
             # REMOVE CLOUDS USING THE CURRENT MASK
 
-            # Save COG file to disk
+            # Save output raster file to disk
             prediction.rio.to_raster(
                 output_filename,
                 BIGTIFF="IF_SAFER",
