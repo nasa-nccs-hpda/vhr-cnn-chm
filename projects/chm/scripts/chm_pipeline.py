@@ -1,13 +1,15 @@
-# -*- coding: utf-8 -*-
-
 import sys
 import time
 import omegaconf
 import argparse
 import logging
-from multiprocessing import cpu_count
-# from vhr_cnn_chm.model.cnn_regression_pipeline import CNNRegressionPipeline
-# from vhr_cnn_chm.model.cnn_config import Config
+
+from vhr_cnn_chm.config import CHMConfig as Config
+from .preprocess import run as run_preprocess
+from .train import run as run_train
+from .predict import run as run_predict
+# from vhr_cnn_chm.model.cnn_regression_pipeline \
+#   import CNNRegressionPipeline
 
 __status__ = "development"
 
@@ -15,7 +17,7 @@ __status__ = "development"
 # -----------------------------------------------------------------------------
 # main
 #
-# python cnn_regression_pipeline.py -c config.yaml -s train -d config.csv
+# python chm_pipeline.py -c config.yaml -s preprocess train
 # -----------------------------------------------------------------------------
 def main():
 
@@ -41,15 +43,6 @@ def main():
                         default=['preprocess', 'train', 'predict'],
                         choices=['preprocess', 'train', 'predict'])
 
-    parser.add_argument(
-                        '-p',
-                        '--num-processes',
-                        type=int,
-                        required=False,
-                        dest='n_processes',
-                        help='Number of processes',
-                        default=cpu_count())
-
     args = parser.parse_args()
 
     # Logging
@@ -63,7 +56,6 @@ def main():
     ch.setFormatter(formatter)
     logger.addHandler(ch)
 
-    """
     # Configuration file intialization
     schema = omegaconf.OmegaConf.structured(Config)
     conf = omegaconf.OmegaConf.load(args.config_file)
@@ -72,20 +64,18 @@ def main():
     except BaseException as err:
         sys.exit(f"ERROR: {err}")
 
-    # Regression CHM pipeline
-    cnn_pipeline = CNNRegressionPipeline(conf, args.n_processes)
     timer = time.time()
 
     # Regression CHM pipeline steps
     if "preprocess" in args.pipeline_step:
-        cnn_pipeline.preprocess()
+        run_preprocess(args, conf)
     if "train" in args.pipeline_step:
-        cnn_pipeline.train()
+        run_train(args, conf)
     if "predict" in args.pipeline_step:
-        cnn_pipeline.predict()
+        run_predict(args, conf)
 
     logging.info(f'Took {(time.time()-timer)/60.0:.2f} min.')
-    """
+
 
 # -----------------------------------------------------------------------------
 # Invoke the main

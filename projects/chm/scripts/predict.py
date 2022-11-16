@@ -25,9 +25,11 @@ from tensorflow_caney.utils.data import modify_bands, \
 from tensorflow_caney.utils import indices
 from tensorflow_caney.inference import regression_inference
 
+__status__ = "development"
+
 
 # ---------------------------------------------------------------------------
-# script train.py
+# script predict.py
 # ---------------------------------------------------------------------------
 def run(
             args: argparse.Namespace,

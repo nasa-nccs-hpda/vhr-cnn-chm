@@ -24,6 +24,8 @@ from tensorflow_caney.utils.metrics import get_metrics
 from tensorflow_caney.utils.callbacks import get_callbacks
 from tensorflow_caney.utils.model import get_model, load_model
 
+__status__ = "development"
+
 
 # ---------------------------------------------------------------------------
 # script train.py

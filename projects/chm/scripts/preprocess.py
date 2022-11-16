@@ -18,7 +18,7 @@ from tensorflow_caney.utils.system import seed_everything
 
 CHUNKS = {'band': 'auto', 'x': 'auto', 'y': 'auto'}
 
-__status__ = "Development"
+__status__ = "development"
 
 
 # ---------------------------------------------------------------------------
