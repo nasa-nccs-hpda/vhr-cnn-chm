@@ -20,10 +20,10 @@ requires = [
     "wheel",
     "omegaconf",
     "segmentation-models",
-    # "git+https://github.com/JanMarcelKezmann/TensorFlow-Advanced-Segmentation-Models.git",
     "xarray",
     "rioxarray",
-    "numba"
+    "numba",
+    "git+https://github.com/nasa-nccs-hpda/tensorflow-caney.git"
 ]
 build-backend = "setuptools.build_meta"
 
