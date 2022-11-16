@@ -11,7 +11,7 @@ setup(
     author='Jordan A. Caraballo-Vega',
     author_email='jordan.a.caraballo-vega@nasa.gov',
     zip_safe=False,
-    url='https://github.com/nasa-cisto-ai/vhr-cnn-chm.git',
+    url='https://github.com/nasa-nccs-hpda/vhr-cnn-chm.git',
     long_description=long_description,
     long_description_content_type="text/markdown",
     packages=find_packages(),
