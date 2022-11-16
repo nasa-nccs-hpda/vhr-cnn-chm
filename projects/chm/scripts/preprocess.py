@@ -28,18 +28,18 @@ def run(args, conf) -> None:
 
     logging.info('Starting main preprocessing method.')
 
-    # define output directories
+    # Define output directories
     metadata_output_dir = os.path.join(conf.data_dir, 'metadata')
     intersection_output_dir = os.path.join(metadata_output_dir, 'intersection')
     images_output_dir = os.path.join(conf.data_dir, 'images')
     labels_output_dir = os.path.join(conf.data_dir, 'labels')
 
-    # create output directories
+    # Create output directories
     for out_dir in [
             images_output_dir, labels_output_dir, intersection_output_dir]:
         os.makedirs(out_dir, exist_ok=True)
 
-    # generate WorldView vs. ICESAT-2 footprint (geopackages with matches)
+    # Generate WorldView vs. ICESAT-2 footprint (geopackages with matches)
     if conf.footprint:
 
         # get ATL08 dataframe points

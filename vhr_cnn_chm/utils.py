@@ -14,8 +14,6 @@ from shapely.geometry import box
 from multiprocessing import Pool, cpu_count
 from omegaconf.listconfig import ListConfig
 
-# retrived from https://github.com/pahbs/geoscitools/blob/master/atl08lib.py
-
 from tensorflow_caney.utils.vector.extract import \
     convert_coords_to_pixel_location, extract_centered_window
 from tensorflow_caney.utils.data import modify_bands
@@ -30,6 +28,7 @@ def atl08_io(
     Read all ATL08 from CSVs of a given year after extract_filter_atl08.py
     Write to a pickle file by year
     Return a geodataframe
+    Modified from https://github.com/pahbs/geoscitools/blob/master/atl08lib.py
     """
     dir_pickle = atl08_csv_output_dir
     filename_regex = os.path.join(
@@ -280,11 +279,9 @@ def extract_tiles(
     try:
         # decompress row iter object into row_id and geopandas row
         row_id, row = gpd_iter
-        # print(row_id, row)
 
         # open raster via GDAL
         image_dataset = osgeo.gdal.Open(row['scene_id'])
-        # print(image_dataset.GetProjection(), row.crs)
 
         # get window pixel location from coordinates
         window_pixel_x, window_pixel_y = convert_coords_to_pixel_location(
@@ -354,19 +351,13 @@ def extract_tiles(
         # where all pixels are the same h_can value, and
         # landcover is used as a postprocessing step
         else:
-
-            print("Entered the famous else", row['h_can'])
-            return
+            # Future implementation:
             # set entire tile to be h_can value
             # clipped_mask = np.full(
             #    (1, clipped_data.shape[1], clipped_data.shape[2]),
             #    h_can
             # )
-            # print(
-            #    clipped_mask.shape, clipped_mask.min(),
-            #    clipped_mask.max(), poly_row['h_can']
-            # )
-            # print("Went through the not preprocess tile")
+            return
 
         # set output filenames
         output_data_filename = os.path.join(

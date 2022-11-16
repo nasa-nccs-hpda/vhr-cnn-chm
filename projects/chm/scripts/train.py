@@ -69,8 +69,8 @@ def run(
     # Set multi-GPU training strategy
     with gpu_strategy.scope():
 
-        transfer_learning = 'fine-tuningxxxx'
-        if transfer_learning == 'fine-tuningxx':
+        transfer_learning = 'fine-tuning-xxxx'
+        if transfer_learning == 'fine-tuning-xx':
             model = get_model(conf.model)
             model.trainable = False
             model_2 = load_model(
@@ -79,9 +79,6 @@ def run(
             )
 
             model.set_weights(model_2.get_weights())
-
-            # print(dir(model))
-            # model = model(model, training=False)
             model.trainable = True
             model.compile(
                 loss=get_loss(conf.loss),
