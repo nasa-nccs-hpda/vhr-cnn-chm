@@ -1,0 +1,93 @@
+# Configuration options for CNN Regression
+experiment_name: cnn-chm
+experiment_type: 2m_chm
+footprint: True
+tiles: True
+
+# Directory configurations
+data_dir: '/explore/nobackup/projects/ilab/projects/AIML_CHM/CNN_CHM/development/senegal'
+model_dir: '/explore/nobackup/projects/ilab/projects/AIML_CHM/CNN_CHM/development/senegal/metadata/models/v1.3'
+mask_dir: '/explore/nobackup/projects/ilab/projects/Senegal/3sl/products/land_cover/dev/trees.v3'
+cloudmask_dir: '/explore/nobackup/projects/3sl/products/cloudmask/v1'
+mask_preprocessing: True
+mask_postprocessing: False
+
+# ATL08 configurations
+atl08_dir: '/explore/nobackup/projects/ilab/projects/AIML_CHM/CNN_CHM/labels/atl08.005/senegal_20m'
+atl08_start_year: 2018
+atl08_end_year: 2022
+
+# General configurations
+general_crs: "EPSG:32628"
+
+# WorldView configurations
+wv_data_regex:
+  - '/explore/nobackup/projects/3sl/data/VHR/CAS/M1BS/*.tif'
+  - '/explore/nobackup/projects/3sl/data/VHR/ETZ/M1BS/*.tif'
+  - '/explore/nobackup/projects/3sl/data/VHR/SRV/M1BS/*.tif'
+
+# Data extraction
+tile_size: 128
+label_attribute: 'h_can_20m'
+
+input_bands:
+  - CoastalBlue
+  - Blue
+  - Green
+  - Yellow
+  - Red
+  - RedEdge
+  - NIR1
+  - NIR2
+
+output_bands:
+  - Blue
+  - Green
+  - Red
+  - NIR1
+
+# ----------------------------------------
+# Training
+# ----------------------------------------
+
+# standardization functions: local, global, mixed
+standardization: 'local'
+batch_size: 64
+n_classes: 1
+test_size: 0.20
+learning_rate: 0.0001
+max_epochs: 6000
+patience: 10
+
+augment: True
+crop: False
+seed: 42
+
+model: "tfc.networks.unet_regression.unet_batchnorm_regression(nclass=1, input_size=(128, 128, 4),maps=[16, 32, 64, 128, 256])"
+loss: 'tf.keras.losses.MeanAbsoluteError()'
+optimizer: tf.keras.optimizers.Adam
+
+metrics:
+  - 'tf.keras.metrics.MeanSquaredError()'
+  - 'tf.keras.metrics.RootMeanSquaredError()'
+  - 'tf.keras.metrics.MeanAbsoluteError()'
+  - 'tf.keras.metrics.MeanAbsolutePercentageError()'
+  - 'tf.keras.metrics.CosineSimilarity(axis=1)'
+
+callbacks:
+  - "tf.keras.callbacks.ModelCheckpoint(save_best_only=True, mode='min', monitor='val_loss', filepath='${model_dir}/{epoch:02d}-{val_loss:.2f}.hdf5')"
+  - "tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=4)"
+  - "tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=False)"
+  - "tf.keras.callbacks.TerminateOnNaN()"
+
+inference_overlap: 0.50
+pred_batch_size: 512
+prediction_dtype: 'float32'
+
+# Model Filename
+model_filename: '/explore/nobackup/projects/ilab/projects/AIML_CHM/CNN_CHM/development/senegal/metadata/models/v1.2/41-18.60.hdf5'
+inference_save_dir: '/explore/nobackup/projects/ilab/projects/AIML_CHM/CNN_CHM/products/senegal/v1.2'
+inference_regex_list:
+  - '/explore/nobackup/projects/3sl/data/VHR/CAS/M1BS/*_2021*_M1BS_*-toa.tif'
+  - '/explore/nobackup/projects/3sl/data/VHR/CAS/M1BS/WV03_20211211_M1BS_104001007192EE00-toa.tif'
+  - '/explore/nobackup/projects/3sl/data/Tappan/Tappan01_WV02_20110430_M1BS_103001000A27E100_data.tif'
