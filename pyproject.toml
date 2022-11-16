@@ -23,7 +23,7 @@ requires = [
     "xarray",
     "rioxarray",
     "numba",
-    "git+https://github.com/nasa-nccs-hpda/tensorflow-caney.git"
+    "tensorflow-caney @ git+https://github.com/nasa-nccs-hpda/tensorflow-caney.git@main"
 ]
 build-backend = "setuptools.build_meta"
 
