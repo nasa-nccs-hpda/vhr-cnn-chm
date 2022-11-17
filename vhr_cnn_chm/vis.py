@@ -246,8 +246,7 @@ def ADD_ATL08_OBS_TO_MAP(
         atl08_gdf = atl08_gdf[
             atl08_gdf[NIGHT_FLAG_NAME] == 1]
         night_flg_label = 'night'
-    print(
-        f'Mapping {len(atl08_gdf)} {night_flg_label} ATL08 observations of {MAP_COL}')
+    print(f'Mapping {len(atl08_gdf)} {night_flg_label} ATL08 of {MAP_COL}')
 
     # https://stackoverflow.com/questions/61263787/folium-featuregroup-in-python
     # feature_group = folium.FeatureGroup('ATL08')
@@ -328,10 +327,10 @@ def MAP_LAYER_FOLIUM(
                     'opacity': 1,
                     'fillOpacity': 0.5
                 },
-            tooltip=features.GeoJsonTooltip(
-                fields=[LAYER_COL_NAME],
-                aliases=[f'{LAYER_COL_NAME}:'],
-            )
+                tooltip=features.GeoJsonTooltip(
+                    fields=[LAYER_COL_NAME],
+                    aliases=[f'{LAYER_COL_NAME}:'],
+                )
         )
         GEOJSON_LAYER.add_to(foliumMap)
 
