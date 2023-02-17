@@ -7,6 +7,7 @@ import sys
 import time
 import atexit
 import logging
+import datetime
 import argparse
 import omegaconf
 import tensorflow as tf
@@ -49,6 +50,15 @@ def run(
     # Set and create model directory
     os.makedirs(conf.model_dir, exist_ok=True)
 
+    # Create tensorboard logging dir and tb callback
+    time_stamped_subdir = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    logging_dir = os.path.join(args.log_dir, time_stamped_subdir)
+    os.makedirs(logging_dir, exist_ok=True)
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(
+        log_dir=logging_dir, histogram_freq=1)
+    callbacks = get_callbacks(conf.callbacks)
+    callbacks.append(tensorboard_callback)
+
     # Set hardware acceleration options
     gpu_strategy = set_gpu_strategy(conf.gpu_devices)
     set_mixed_precision(conf.mixed_precision)
@@ -67,6 +77,7 @@ def run(
     main_data_loader = RegressionDataLoader(
         data_filenames, label_filenames, conf
     )
+    logging.info('Past data loader')
 
     # Set multi-GPU training strategy
     with gpu_strategy.scope():
@@ -89,6 +100,7 @@ def run(
             )
         else:
             # Get and compile the model
+            logging.info(str(conf.model))
             model = get_model(conf.model)
             model.compile(
                 loss=get_loss(conf.loss),
@@ -96,21 +108,21 @@ def run(
                 metrics=get_metrics(conf.metrics)
             )
 
-    model.summary()
+        model.summary()
 
-    # Fit the model and start training
-    model.fit(
-        main_data_loader.train_dataset,
-        validation_data=main_data_loader.val_dataset,
-        epochs=conf.max_epochs,
-        steps_per_epoch=main_data_loader.train_steps,
-        validation_steps=main_data_loader.val_steps,
-        callbacks=get_callbacks(conf.callbacks)
-    )
+        # Fit the model and start training
+        model.fit(
+            main_data_loader.train_dataset,
+            validation_data=main_data_loader.val_dataset,
+            epochs=conf.max_epochs,
+            steps_per_epoch=main_data_loader.train_steps,
+            validation_steps=main_data_loader.val_steps,
+            callbacks=callbacks
+        )
 
     # Close multiprocessing Pools from the background
-    if parse_version(tf.__version__) > parse_version('2.4'):
-        atexit.register(gpu_strategy._extended._collective_ops._pool.close)
+    # if parse_version(tf.__version__) > parse_version('2.4'):
+    #    atexit.register(gpu_strategy._extended._collective_ops._pool.close)
 
     return
 
@@ -127,6 +139,13 @@ def main() -> None:
                         required=True,
                         dest='config_file',
                         help='Path to the configuration file')
+
+    parser.add_argument('-l',
+                        '--log-dir',
+                        type=str,
+                        required=True,
+                        dest='log_dir',
+                        help='Logging directory')
 
     args = parser.parse_args()
 
@@ -148,7 +167,12 @@ def main() -> None:
         conf = omegaconf.OmegaConf.merge(schema, conf)
     except BaseException as err:
         sys.exit(f"ERROR: {err}")
-
+    dt_now = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    logging_filename = f'{conf.experiment_type}_{conf.tile_size}_{dt_now}.log'
+    logging_filepath = os.path.join(args.log_dir, logging_filename)
+    fh = logging.FileHandler(logging_filepath)
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
     # Seed everything
     seed_everything(conf.seed)
 

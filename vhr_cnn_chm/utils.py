@@ -2,28 +2,33 @@ import os
 import re
 import time
 import glob
+import random
 import logging
+import warnings
 import rasterio
 import osgeo.gdal
 import numpy as np
 import pandas as pd
 import geopandas as gpd
+import rioxarray as rxr
 from pathlib import Path
 from itertools import repeat
 from shapely.geometry import box
 from multiprocessing import Pool, cpu_count
 from omegaconf.listconfig import ListConfig
 
+"""
 from tensorflow_caney.utils.vector.extract import \
     convert_coords_to_pixel_location, extract_centered_window
 from tensorflow_caney.utils.data import modify_bands
+"""
 
 
 def atl08_io(
-            atl08_csv_output_dir,
-            year_search, do_pickle=True,
-            filename_regex='ATL08*.csv'
-        ):
+    atl08_csv_output_dir,
+    year_search, do_pickle=True,
+    filename_regex='ATL08*.csv'
+):
     """
     Read all ATL08 from CSVs of a given year after extract_filter_atl08.py
     Write to a pickle file by year
@@ -60,11 +65,11 @@ def atl08_io(
 
 
 def filter_gdf_by_list(
-            gdf,
-            gdf_key: str = 'acq_year',
-            isin_list: list = [],
-            reset_index: bool = True
-        ):
+    gdf,
+    gdf_key: str = 'acq_year',
+    isin_list: list = [],
+    reset_index: bool = True
+):
     """
     Filter GDF by year range.
     """
@@ -72,12 +77,12 @@ def filter_gdf_by_list(
 
 
 def get_atl08_gdf(
-            data_dir: str,
-            start_year: int = 2018,
-            end_year: int = 2022,
-            reset_index: bool = True,
-            crs: str = None
-        ):
+    data_dir: str,
+    start_year: int = 2018,
+    end_year: int = 2022,
+    reset_index: bool = True,
+    crs: str = None
+):
     """
     Get ATL08 from extracted CSVs.
     """
@@ -117,7 +122,7 @@ def get_filenames(data_regex: str):
     return sorted(filenames)
 
 
-def filter_evhr_year_range(filenames, start_year, end_year):
+def filter_vhr_year_range(filenames, start_year, end_year):
     """
     Filter list by year.
     """
@@ -125,13 +130,33 @@ def filter_evhr_year_range(filenames, start_year, end_year):
     years = [str(year) for year in range(start_year, end_year+1)]
     for f in filenames:
         date_match = re.search(
-            r'(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})', f)
+            r'(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})',
+            os.path.basename(f))
         if date_match['year'] in years:
             new_list.append(f)
     return sorted(new_list)
 
 
-def get_wv_evhr_gdf(data_regex: str, crs: str = None):
+def filter_vhr_month_range(filenames, start_month, end_month):
+    """
+    Filter list by month
+    """
+    new_list = []
+    months = ['{:02}'.format(month)
+              for month in range(start_month, end_month+1)]
+    print(months)
+    for f in filenames:
+        date_match = re.search(
+            r'(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})',
+            os.path.basename(f))
+        print(date_match['month'])
+        print(date_match)
+        if date_match['month'] in months:
+            new_list.append(f)
+    return sorted(new_list)
+
+
+def get_wv_vhr_gdf(data_regex: str, crs: str = None):
     """
     Get WorldView from local EVHR TIFs.
     Improvements:
@@ -157,7 +182,8 @@ def get_wv_evhr_gdf(data_regex: str, crs: str = None):
 
         # append some metadata
         date_match = re.search(
-            r'(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})', filename)
+            r'(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})',
+            os.path.basename(filename))
 
         scene_ids_list.append(filename)
         years_ids_list.append(int(date_match['year']))
@@ -180,6 +206,194 @@ def get_wv_evhr_gdf(data_regex: str, crs: str = None):
         'geometry': bounds_ids_list
     }
     return gpd.GeoDataFrame(d, crs=crs)
+
+
+def gen_random_tiles_from_swath(wv_vhr_gdf_iter,
+                                lidar_swath_gdf,
+                                tile_size: int,
+                                input_bands: list,
+                                output_bands: list,
+                                images_output_dir: str,
+                                labels_output_dir: str,
+                                max_patches: int = None,
+                                mask_path: str = None,
+                                cloudmask_dir: str = None,
+                                cloudcover_threshold: float = 0.9,
+                                mask_preprocessing: bool = True,
+                                augment: bool = False,
+                                data_dir: str = '.'):
+    """
+    Given a single VHR scene extract sub-tiles.
+    1. Extract the overlay geometry between
+    the VHR scene and the LIDAR swath
+    2. Clip (in mem) VHR scene, LIDAR swath, and any a priori masks
+    3. Extract random subtiles, apply random augmentations
+    """
+    # Get geometry overlay between VHR and LIDAR swath
+    row_id, row = wv_vhr_gdf_iter
+    clip_geometry = [row.geometry]
+    lidar_file_path = os.path.join(
+        '/explore/nobackup/people/cssprad1/projects/serc-howland-chm/data/GLiHT/Serc/', row['location'])
+    print(row['location'])
+    print(row['study_area'])
+    lidar_swath = rxr.open_rasterio(
+        lidar_file_path)
+    # Clip VHR scene to overlay geometry
+    vhr_scene = rxr.open_rasterio(
+        row['scene_id']).rio.reproject_match(lidar_swath)
+
+    print('Clipping')
+    vhr_scene_clipped = vhr_scene.rio.clip(clip_geometry)
+    image = vhr_scene_clipped.data
+    image = np.moveaxis(image, 0, -1)
+    print(image.shape)
+
+    # Clip LIDAR scenes to overlay geometry
+    lidar_swath_clipped = lidar_swath.rio.clip(clip_geometry)
+    label = lidar_swath_clipped.data
+    label = label[0, :, :]
+    label_min = np.nanmin(label)
+    label_max = np.nanmax(label)
+    print(label_min)
+    print(label_max)
+    label_min_max_filename = os.path.join(data_dir, 'label_min_max.csv')
+    label_min_max = np.stack([label_min, label_max], axis=0)
+    pd.DataFrame(label_min_max).to_csv(label_min_max_filename, header=None, index=None)
+
+    if mask_path and mask_preprocessing:
+        mask = rxr.open_rasterio(mask_path).rio.reproject_match(lidar_swath)
+        mask = mask.rio.clip(clip_geometry)
+        mask = mask.data
+        mask = mask[0, :, :]
+        print(mask.shape)
+
+    if cloudmask_dir is not None:
+
+        # get filename from cloudmask
+        cloudmask_filename = os.path.basename(
+            row['scene_id']).replace('sr-02m.tif', 'toa.cloudmask.tif')
+        cloudmask_filepath = os.path.join(
+            cloudmask_dir,
+            cloudmask_filename)
+        if not os.path.exists(cloudmask_filepath):
+            raise FileNotFoundError(cloudmask_filepath)
+        # read cloudmask dataset
+        cloud_mask = \
+            rxr.open_rasterio(cloudmask_filepath).rio.reproject_match(
+                lidar_swath)
+        cloud_mask = cloud_mask.rio.clip(clip_geometry)
+        cloud_mask = cloud_mask.data
+        cloud_mask = cloud_mask[0, :, :]
+        print(cloud_mask.shape)
+        cloudcover_percentage = \
+            np.count_nonzero(cloud_mask == 1)/cloud_mask.size
+        cloudcover_percentage = round(cloudcover_percentage, 3)
+        print(f'Cloud cover percentage: {cloudcover_percentage}')
+        if cloudcover_percentage > cloudcover_threshold:
+            msg = f'Cloud-cover {cloudcover_percentage} ' + \
+                f'exceeded threshold {cloudcover_threshold}'
+            warnings.warn(msg)
+            return
+
+    # image = modify_bands(
+    #    image, input_bands, output_bands)
+
+    # sub-tile filename starts with VHR basename
+    output_filename = os.path.basename(row['scene_id'])
+
+    generated_tiles = 0  # counter for generated tiles
+    bad_tiles = 0
+    cloud_masked_tiles = 0
+    total_tries = 0
+    all_same = 0
+    while generated_tiles < max_patches:
+        total_tries += 1
+        # Generate random integers from image
+        y = random.randint(0, image.shape[0] - tile_size)
+        x = random.randint(0, image.shape[1] - tile_size)
+
+        # Generate img and mask patches
+        image_tile = image[y:(y + tile_size), x:(x + tile_size)]
+        label_tile = label[y:(y + tile_size), x:(x + tile_size)]
+        if mask is not None:
+            mask_tile = mask[y:(y + tile_size), x:(x + tile_size)]
+        if cloud_mask is not None:
+            cloud_mask_tile = cloud_mask[y:(y + tile_size), x:(x + tile_size)]
+
+        # if nodata is present, or if tiles is incorrect, skip
+        image_tile_min = image_tile.min()
+        if image_tile is None or \
+                image_tile_min < 0 or np.isnan(image_tile_min):
+            bad_tiles += 1
+            continue
+
+        if mask_tile is not None:
+            mask_tile_thresholded = np.where(mask_tile >= 0.05, 1, 0)
+            label_tile = np.where(mask_tile_thresholded == 0, 0, label_tile)
+
+        label_tile_max = label_tile.max()
+        label_tile_min = label_tile.min()
+        if label_tile_max == label_tile_min:
+            all_same += 1
+            continue
+
+        if label_tile_min < 0 or \
+                label_tile_max > 200 or np.isnan(label_tile_max):
+            bad_tiles += 1
+            continue
+
+        if cloud_mask_tile is not None:
+            cloud_pixels = (cloud_mask_tile == 1)
+            if np.any(cloud_pixels):
+                cloud_masked_tiles += 1
+                continue
+
+        # Add to the tiles counter
+        generated_tiles += 1
+        filename = f'{Path(output_filename).stem}_{generated_tiles}.npy'
+
+        if np.min(label_tile) == np.max(label_tile):
+            raise RuntimeError('PRE PRE BAD BAD PREPROCESS')
+
+        # Apply some random transformations
+        if augment:
+
+            if np.random.random_sample() > 0.5:
+                # metadata[filename]['fliplr'] = True
+                image_tile = np.fliplr(image_tile)
+                label_tile = np.fliplr(label_tile)
+
+            if np.random.random_sample() > 0.5:
+                # metadata[filename]['flipud'] = True
+                image_tile = np.flipud(image_tile)
+                label_tile = np.flipud(label_tile)
+
+            if np.random.random_sample() > 0.5:
+                # metadata[filename]['rot90'] = True
+                image_tile = np.rot90(image_tile, 1)
+                label_tile = np.rot90(label_tile, 1)
+
+            if np.random.random_sample() > 0.5:
+                # metadata[filename]['rot180'] = True
+                image_tile = np.rot90(image_tile, 2)
+                label_tile = np.rot90(label_tile, 2)
+
+            if np.random.random_sample() > 0.5:
+                # metadata[filename]['rot270'] = True
+                image_tile = np.rot90(image_tile, 3)
+                label_tile = np.rot90(label_tile, 3)
+
+        # save tiles to disk
+        if np.min(label_tile) == np.max(label_tile):
+            raise RuntimeError('BAD BAD PREPROCESS')
+        np.save(os.path.join(images_output_dir, filename), image_tile)
+        np.save(os.path.join(labels_output_dir, filename), label_tile)
+    print(f'Tiles generated: {generated_tiles}/{max_patches}')
+    print(f'Total tile attempts: {total_tries}')
+    print(f'Bad data tiles: {bad_tiles}/{total_tries}')
+    print(f'All same tiles: {all_same}/{total_tries}')
+    print(f'Cloud masked tiles: {cloud_masked_tiles}/{total_tries}')
+    return
 
 
 def filter_polygon_in_raster(filename, atl08_gdf, output_dir):
@@ -216,7 +430,7 @@ def filter_polygon_in_raster(filename, atl08_gdf, output_dir):
     intersection = gpd.overlay(atl08_gdf, polygon_row, how='intersection')
 
     # filter by year
-    intersection = intersection[intersection['y'] == intersection['wv_year']]
+    # intersection = intersection[intersection['y'] == intersection['wv_year']]
 
     # set output_dir and create directory
     output_dir = os.path.join(output_dir, study_area)
@@ -235,11 +449,11 @@ def filter_polygon_in_raster(filename, atl08_gdf, output_dir):
 
 
 def filter_polygon_in_raster_parallel(
-            wv_evhr_gdf,
-            atl08_gdf,
-            output_dir: str,
-            n_processes: int = cpu_count()
-        ) -> None:
+    wv_evhr_gdf,
+    atl08_gdf,
+    output_dir: str,
+    n_processes: int = cpu_count()
+) -> None:
     """
     Return overalapping points
     """
@@ -262,17 +476,17 @@ def filter_polygon_in_raster_parallel(
 
 
 def extract_tiles(
-            gpd_iter,
-            tile_size: int,
-            input_bands: list,
-            output_bands: list,
-            images_output_dir: str,
-            labels_output_dir: str,
-            label_attribute: str = 'h_can',
-            mask_dir: str = None,
-            cloudmask_dir: str = None,
-            mask_preprocessing: bool = True
-        ):
+    gpd_iter,
+    tile_size: int,
+    input_bands: list,
+    output_bands: list,
+    images_output_dir: str,
+    labels_output_dir: str,
+    label_attribute: str = 'h_can',
+    mask_dir: str = None,
+    cloudmask_dir: str = None,
+    mask_preprocessing: bool = True
+):
     """
     Extract and save tile from pandas dataframe metadata.
     """
@@ -384,18 +598,18 @@ def extract_tiles(
 
 
 def extract_tiles_parallel(
-            intersection_filenames: list,
-            tile_size: int,
-            input_bands: list,
-            output_bands: list,
-            images_output_dir: str,
-            labels_output_dir: str,
-            label_attribute: str = 'h_can',
-            mask_dir: str = None,
-            cloudmask_dir: str = None,
-            mask_preprocessing: bool = False,
-            n_processes=cpu_count()
-        ):
+    intersection_filenames: list,
+    tile_size: int,
+    input_bands: list,
+    output_bands: list,
+    images_output_dir: str,
+    labels_output_dir: str,
+    label_attribute: str = 'h_can',
+    mask_dir: str = None,
+    cloudmask_dir: str = None,
+    mask_preprocessing: bool = False,
+    n_processes=cpu_count()
+):
 
     for intersection_filename in intersection_filenames:
 

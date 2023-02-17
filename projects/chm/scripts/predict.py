@@ -178,6 +178,11 @@ def run(
             prediction = prediction.where(image != nodata)
             prediction.rio.write_nodata(
                 conf.prediction_nodata, encoded=True, inplace=True)
+            logging.info(conf.general_crs)
+            logging.info(type(conf.general_crs))
+            prediction.rio.write_crs(
+                conf.general_crs, inplace=True
+            )
 
             # TODO: ADD CLOUDMASKING STEP HERE
             # REMOVE CLOUDS USING THE CURRENT MASK

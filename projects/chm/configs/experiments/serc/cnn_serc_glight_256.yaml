@@ -1,0 +1,103 @@
+# Configuration options for CNN Regression
+experiment_type: 1m_glight_chm_serc_256
+footprint: True
+tiles: False
+
+seed: 42
+gpu_devices: 0,1,2,3
+mixed_precision: False
+xla: False
+
+input_bands:
+  - 1
+  - 2
+  - 3
+  - 4
+
+# Directory configurations
+data_dir: '/explore/nobackup/people/cssprad1/projects/serc-howland-chm/data/model_0.0.0/data_dir_256'
+model_dir: '/explore/nobackup/people/cssprad1/projects/serc-howland-chm/data/model_0.0.0/data_dir_256/models'
+mask_dir: '/explore/nobackup/people/cssprad1/projects/serc-howland-chm/data/GLiHT/Serc/SERC_Jun2012/metrics/SERC_Jun2012_tree_fcover.tif'
+cloudmask_dir: '/explore/nobackup/projects/3sl/products/cloudmask/v1'
+mask_preprocessing: True
+mask_postprocessing: False
+
+# ATL08 configurations
+atl08_dir: '/explore/nobackup/projects/ilab/projects/AIML_CHM/CNN_CHM/labels/atl08.005/serc'
+atl08_start_year: 2018
+atl08_end_year: 2022
+
+# General configurations
+general_crs: "EPSG:32618"
+
+# WorldView configurations
+wv_data_regex:
+  - '/explore/nobackup/projects/ilab/data/srlite/products/srlite-0.9.15-10282022-qa/10282022-all/Serc/WV*M1BS*-sr-02m.tif'
+
+# Data extraction
+tile_size: 256
+#label_attribute: 'h_can'
+
+# ----------------------------------------
+# Training
+# ----------------------------------------
+
+# standardization functions: local, global, mixed
+standardization: 'local'
+batch_size: 32
+n_classes: 1
+test_size: 0.20
+learning_rate: 3e-4
+max_epochs: 6000
+patience: 10
+
+augment: True
+
+#model: "tfc.networks.unet_regression.unet_batchnorm_regression(nclass=1, input_size=(32, 32, 8),maps=[16, 32, 64, 128, 256])"
+#model: "tfc.unet_regression.unet_batchnorm_regression(nclass=1, input_size=(256, 256, 4),maps=[16, 32, 64, 128, 256])"
+model: "tfc.networks.regression.unet_regression.get_model_new(input_size=(256, 256, 4))"
+#loss: 'tf.keras.losses.MeanAbsolutePercentageError()'
+#loss: 'tf.keras.losses.MeanSquaredError()'
+#loss: 'tf.keras.losses.MeanSquaredError()'
+loss: 'tf.keras.losses.MeanAbsoluteError()'
+optimizer: tf.keras.optimizers.Adam
+#optimizer: tf.keras.optimizers.RMSprop
+
+metrics:
+  - 'tf.keras.metrics.MeanSquaredError()'
+  - 'tf.keras.metrics.RootMeanSquaredError()'
+  - 'tf.keras.metrics.MeanAbsoluteError()'
+  #- 'tf.keras.metrics.MeanAbsolutePercentageError()'
+  #- 'tf.keras.metrics.CosineSimilarity(axis=1)'
+
+callbacks:
+  - "tf.keras.callbacks.ModelCheckpoint(save_best_only=True, mode='min', monitor='val_loss', filepath='${model_dir}/{epoch:02d}-{val_loss:.2f}.hdf5')"
+  - "tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=4)"
+  - "tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=False)"
+  - "tf.keras.callbacks.TerminateOnNaN()"
+
+output_bands:
+  - 1
+  - 2
+  - 3
+  - 4
+
+window_size: 10000
+pred_batch_size: 32
+inference_overlap: 0.50
+inference_treshold: 0.50
+prediction_dtype: float32
+prediction_nodata: -10001
+
+# Model Filename
+# model_filename: '/adapt/nobackup/projects/ilab/projects/Senegal/CNN_CHM/model/22-27.97.hdf5'
+# model_filename: '/adapt/nobackup/projects/ilab/projects/Senegal/CNN_CHM/v2/intersection_tiles_evhrtoa/CAS/model/41-0.00.hdf5'
+#model_filename: '/adapt/nobackup/projects/ilab/projects/Senegal/CNN_CHM/v5/models/13-0.01.hdf5'
+#model_filename: '/adapt/nobackup/projects/ilab/projects/Senegal/CNN_CHM/v5/models/17-3.75.hdf5'
+# model_filename: '/adapt/nobackup/projects/ilab/projects/Senegal/CNN_CHM/v5/models/21-3.87.hdf5'
+#model_filename: '/explore/nobackup/projects/ilab/projects/Senegal/CNN_CHM/senegal_20m/v1/models/02-1.75.hdf5'
+model_filename: '/explore/nobackup/people/cssprad1/projects/serc-howland-chm/data/model_0.0.0/data_dir_256/models/59-0.08.hdf5'
+#inference_regex: '/explore/nobackup/projects/ilab/projects/srlite/input/Serc/WV02_20100304_M1BS_1030010004B9A400-toa.tif'
+inference_regex: '/explore/nobackup/projects/ilab/data/srlite/products/srlite-0.9.15-10282022-qa/10282022-all/Serc/WV02_20100918_M1BS_103001000708C400-sr-02m.tif'
+#inference_regex: '/adapt/nobackup/people/mcarrol2/LCLUC_Senegal/ForKonrad/*_data.tif'
+inference_save_dir: '/explore/nobackup/people/cssprad1/projects/serc-howland-chm/data/model_0.0.0/data_dir_256/predictions'

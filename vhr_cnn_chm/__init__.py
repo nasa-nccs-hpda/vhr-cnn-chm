@@ -2,7 +2,7 @@ from pkg_resources import get_distribution, DistributionNotFound
 
 try:
     VERSION = get_distribution(__name__).version
-except DistributionNotFound:  # pragma: no cover
+except Exception:  # pragma: no cover
     try:
         from .version import __version__ as VERSION  # noqa
     except ImportError:  # pragma: no cover
