@@ -8,13 +8,14 @@ import logging
 import argparse
 import omegaconf
 from glob import glob
-
-from vhr_cnn_chm.config import CHMConfig as Config
-from vhr_cnn_chm.utils import get_atl08_gdf, \
+from vhr_cnn_chm.model.config import CHMConfig as Config
+from vhr_cnn_chm.model.utils import get_atl08_gdf, \
     filter_polygon_in_raster_parallel, \
     extract_tiles_parallel, get_filenames, filter_evhr_year_range
 from tensorflow_caney.utils.system import seed_everything
 
+# os.environ['GDAL_DATA'] = '/usr/share/gdal'
+# os.environ['PROJ_LIB'] = '/usr/share/proj'
 
 CHUNKS = {'band': 'auto', 'x': 'auto', 'y': 'auto'}
 
@@ -28,7 +29,10 @@ def run(args, conf) -> None:
 
     logging.info('Starting main preprocessing method.')
 
-    # Define output directories
+    # -----------------------------------------------------------------------
+    #  # Define output directories
+    # -----------------------------------------------------------------------
+    # output directory 
     metadata_output_dir = os.path.join(conf.data_dir, 'metadata')
     intersection_output_dir = os.path.join(metadata_output_dir, 'intersection')
     images_output_dir = os.path.join(conf.data_dir, 'images')
@@ -38,6 +42,7 @@ def run(args, conf) -> None:
     for out_dir in [
             images_output_dir, labels_output_dir, intersection_output_dir]:
         os.makedirs(out_dir, exist_ok=True)
+
 
     # Generate WorldView vs. ICESAT-2 footprint (geopackages with matches)
     if conf.footprint:
@@ -79,6 +84,7 @@ def run(args, conf) -> None:
         logging.info(f'WorldView, {len(wv_evhr_filenames)} files.')
 
         # Intersection of the two GDBs, output geopackages files
+        # TODO: why are there empty dataframes out of here
         filter_polygon_in_raster_parallel(
             wv_evhr_filenames, atl08_gdf, intersection_output_dir
         )
@@ -104,14 +110,22 @@ def run(args, conf) -> None:
         assert len(intersection_filenames) > 0, \
             f"No gpkg files found under {intersection_output_dir}."
 
+        # TODO: Fix fails to identify CRS
         extract_tiles_parallel(
-            intersection_filenames[:40], conf.tile_size,
-            conf.input_bands, conf.output_bands,
-            images_output_dir, labels_output_dir, conf.label_attribute,
-            conf.mask_dir, conf.cloudmask_dir, conf.mask_preprocessing
+            intersection_filenames[:60],
+            conf.tile_size,
+            conf.input_bands,
+            conf.output_bands,
+            images_output_dir,
+            labels_output_dir,
+            conf.label_attribute,
+            conf.mask_dir,
+            conf.cloudmask_dir,
+            conf.mask_preprocessing
         )
 
     logging.info('Done with preprocessing stage')
+    
     return
 
 
