@@ -1,0 +1,163 @@
+# ---------------------------------------------------------------------------
+# # Configuration options for CNN Regression
+# ---------------------------------------------------------------------------
+
+# ----------------------------- General ----------------------------------- #
+# experiment name and type
+experiment_name: cnn-chm-v2
+experiment_type: 2m_chm
+
+# seed to avoid randomization across experiments
+seed: 42
+
+# gpu devices to use
+gpu_devices: 0,1,2,3
+
+# enable mixed precision, disable for regression stability
+mixed_precision: False
+
+# enable linear acceleration, disable for regression stability
+xla: False
+
+# generate footprints from WorldView
+footprint: False
+
+# generate tiles from WorldView footprints
+tiles: True
+
+# -------------------- Directory Configurations --------------------------- #
+
+# directory to store output data
+data_dir: '/explore/nobackup/people/jacaraba/projects/CNN_CHM/v2/senegal'
+
+# directory to store models
+model_dir: '/explore/nobackup/people/jacaraba/projects/CNN_CHM/v2/senegal/models'
+
+# directory where tree masks live
+# tree_mask_dir: '/explore/nobackup/projects/ilab/projects/Senegal/3sl/products/land_cover/dev/trees.v3'
+tree_mask_dir: '/explore/nobackup/projects/3sl/products/landcover/otcb_CAS_v3'
+
+# directory where cloud masks live
+cloud_mask_dir: '/explore/nobackup/projects/3sl/products/cloudmask/v1'
+
+# directory where landcover masks live
+landcover_mask_virt: '/explore/nobackup/projects/ilab/data/ESA_WorldCover/ESA_WorldCover_Global.vrt'
+
+# -------------------- Preprocess Configurations -------------------------- #
+
+# perfrom preprocessing with masks when generating tiles
+mask_preprocessing: True
+
+# perform postprocessing with masks when generating output
+mask_postprocessing: False
+
+# directory where ATL08 CSVs live
+atl08_dir: '/explore/nobackup/projects/ilab/projects/AIML_CHM/CNN_CHM/labels/atl08.005/senegal_20m'
+
+# year to start to process for training tiles
+atl08_start_year: 2018
+
+# year to end process for training tiles
+atl08_end_year: 2022
+
+# label attribute from the ATLO8 dataset
+label_attribute: 'h_can_20m'
+
+# is there a general CRS we should be using?
+general_crs: "EPSG:32628"
+
+# WorldView regex for data to use as training
+wv_data_regex:
+  - '/explore/nobackup/projects/3sl/data/VHR/CAS/M1BS/*.tif'
+  #- '/explore/nobackup/projects/3sl/data/VHR/ETZ/M1BS/*.tif'
+  #- '/explore/nobackup/projects/3sl/data/VHR/SRV/M1BS/*.tif'
+
+# tile size to feed the CNN
+tile_size: 128
+
+# modify label masks
+modify_labels:
+  - "x < 0": 0
+
+# perform data augmentation on tiles
+augment: True
+
+# input bands from the WorldView imagery
+input_bands:
+  - CoastalBlue
+  - Blue
+  - Green
+  - Yellow
+  - Red
+  - RedEdge
+  - NIR1
+  - NIR2
+
+# output bands to train the model on
+output_bands:
+  - Blue
+  - Green
+  - Red
+  - NIR1
+
+# ---------------------- Training Configurations -------------------------- #
+
+# standardization functions: local, global, mixed
+standardization: 'local'
+
+# normalize label value, value of the tallest tree
+normalize_label: 250.0
+
+# training batch size
+batch_size: 64
+
+# number of classes
+n_classes: 1
+
+# ratio for test size (validation dataset)
+test_size: 0.20
+
+# learning rate
+learning_rate: 0.0001
+
+# max number of epochs, stopped by callbacks
+max_epochs: 6000
+
+# patience for callbacks
+patience: 10
+
+# model to use
+model: "tfc.model.networks.regression.regression_unet.unet_batchnorm_regression(nclass=1, input_size=(128, 128, 4),maps=[16, 32, 64, 128, 256])"
+
+# loss function to use
+loss: 'tf.keras.losses.MeanSquaredError()'
+
+# optimizer to use
+optimizer: tf.keras.optimizers.Adam
+
+metrics:
+  - 'tf.keras.metrics.MeanSquaredError()'
+  - 'tf.keras.metrics.RootMeanSquaredError()'
+  - 'tfa.metrics.RSquare()'
+  - 'tf.keras.metrics.MeanAbsoluteError()'
+
+callbacks:
+  - "tf.keras.callbacks.ModelCheckpoint(save_best_only=True, mode='min', monitor='val_loss', filepath='${model_dir}/{epoch:02d}-{val_loss:.2f}.hdf5')"
+  - "tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=4)"
+  - "tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=False)"
+  - "tf.keras.callbacks.TerminateOnNaN()"
+
+# ---------------------- Prediction Configurations ------------------------ #
+
+inference_overlap: 0.50
+pred_batch_size: 512
+prediction_dtype: float32
+prediction_nodata: 255
+
+#model_filename: '/explore/nobackup/people/jacaraba/projects/CNN_CHM/v2/senegal/models/20-0.00.hdf5'
+inference_save_dir: '/explore/nobackup/people/jacaraba/projects/CNN_CHM/v2/products/senegal'
+#inference_regex: '/explore/nobackup/projects/3sl/data/Tappan/*_data.tif'
+inference_regex_list:
+  - '/explore/nobackup/projects/3sl/data/Tappan/*_data.tif'
+  #- '/explore/nobackup/projects/3sl/data/VHR/CAS/M1BS/*_2021*_M1BS_*-toa.tif'
+  #- '/explore/nobackup/projects/3sl/data/VHR/CAS/M1BS/*_M1BS_*.tif'
