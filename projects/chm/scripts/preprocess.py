@@ -32,7 +32,7 @@ def run(args, conf) -> None:
     # -----------------------------------------------------------------------
     #  # Define output directories
     # -----------------------------------------------------------------------
-    # output directory 
+    # output directory
     metadata_output_dir = os.path.join(conf.data_dir, 'metadata')
     intersection_output_dir = os.path.join(metadata_output_dir, 'intersection')
     images_output_dir = os.path.join(conf.data_dir, 'images')
@@ -42,7 +42,6 @@ def run(args, conf) -> None:
     for out_dir in [
             images_output_dir, labels_output_dir, intersection_output_dir]:
         os.makedirs(out_dir, exist_ok=True)
-
 
     # Generate WorldView vs. ICESAT-2 footprint (geopackages with matches)
     if conf.footprint:
@@ -125,7 +124,7 @@ def run(args, conf) -> None:
         )
 
     logging.info('Done with preprocessing stage')
-    
+
     return
 
 

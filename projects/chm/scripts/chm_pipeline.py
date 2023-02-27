@@ -8,8 +8,6 @@ from vhr_cnn_chm.config import CHMConfig as Config
 from .preprocess import run as run_preprocess
 from .train import run as run_train
 from .predict import run as run_predict
-# from vhr_cnn_chm.model.cnn_regression_pipeline \
-#   import CNNRegressionPipeline
 
 __status__ = "development"
 

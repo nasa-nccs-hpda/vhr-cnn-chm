@@ -24,7 +24,7 @@ from tensorflow_caney.utils.data import modify_bands, \
     get_mean_std_metadata
 from tensorflow_caney.utils import indices
 from tensorflow_caney.inference import regression_inference
-from pygeotools.lib import iolib, malib, geolib, filtlib, warplib
+from pygeotools.lib import iolib, warplib
 
 __status__ = "development"
 
@@ -157,7 +157,8 @@ def run(
             prediction[prediction < 0] = 0
 
             # Land Cover postprocessing
-            r_fn_wc = '/explore/nobackup/projects/ilab/data/ESA_WorldCover/ESA_WorldCover_Global.vrt'
+            r_fn_wc = '/explore/nobackup/projects/ilab/data/' + \
+                'ESA_WorldCover/ESA_WorldCover_Global.vrt'
 
             fn_list = [r_fn_wc]
 
@@ -170,24 +171,16 @@ def run(
                 dst_ndv=255
             )
             worldcover_warp_ma = iolib.ds_getma(warp_ds_list[0])
-            print("UNIQUE WORLD COVER", np.unique(worldcover_warp_ma))
             worldcover_warp_ma[worldcover_warp_ma != 80] = 1
-            print("UNIQUE AFTER WORLD COVER", np.unique(worldcover_warp_ma))
 
-            print("UNIQUE prediction", np.unique(prediction))
-            prediction[worldcover_warp_ma == 80] = 255 #worldcover_warp_ma * prediction
-            #prediction[prediction > 200] = 0
-            print("UNIQUE prediction AFTER WORLD COVER", np.unique(worldcover_warp_ma))
-
-            print("min, max AFTER PREDICTION", prediction.min(), prediction.max())
-            #print("UNIQUE LANDCOVER PREDICTION", masked_prediction.min(), masked_prediction.max())
+            prediction[worldcover_warp_ma == 80] = 255
 
             treemask_filename = os.path.join(
                 conf.mask_dir, 'CAS',
                 f"{Path(filename).stem}.trees.tif")
             treemask = np.squeeze(rxr.open_rasterio(treemask_filename).values)
 
-            prediction[treemask != 1] = 0 
+            prediction[treemask != 1] = 0
 
             # TODO: ADD CLOUDMASKING STEP HERE
             # REMOVE CLOUDS USING THE CURRENT MASK
@@ -224,7 +217,7 @@ def run(
                 compress=conf.prediction_compress,
                 # num_threads='all_cpus',
                 driver=conf.prediction_driver,
-                dtype=np.float32 # conf.prediction_dtype
+                dtype=np.float32
             )
             del prediction
 

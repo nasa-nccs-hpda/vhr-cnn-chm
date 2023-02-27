@@ -19,9 +19,9 @@ setup(
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",
     ],
-    entry_points = {
+    entry_points={
         'console_scripts': [
-            'chm_pipeline = vhr_cnn_chm.view.chm_pipeline_cli:main',                  
-        ],              
+            'chm_pipeline = vhr_cnn_chm.view.chm_pipeline_cli:main',
+        ],
     },
 )
