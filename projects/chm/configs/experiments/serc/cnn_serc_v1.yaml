@@ -4,7 +4,7 @@ footprint: True
 tiles: False
 
 # Directory configurations
-data_dir: '/explore/nobackup/projects/ilab/projects/AIML_CHM/CNN_CHM/development/serc'
+data_dir: '/explore/nobackup/projects/ilab/projects/AIML_CHM/CNN_CHM/development/v2/serc'
 model_dir: '/explore/nobackup/projects/ilab/projects/AIML_CHM/CNN_CHM/development/serc/metadata/models/v1'
 mask_dir: '/explore/nobackup/projects/ilab/projects/Senegal/3sl/products/land_cover/dev/trees.v3'
 cloudmask_dir: '/explore/nobackup/projects/3sl/products/cloudmask/v1'

@@ -1,7 +1,7 @@
 import sys
 import pytest
 from omegaconf import OmegaConf
-from vhr_cnn_chm.config import CHMConfig as Config
+from vhr_cnn_chm.model.config import CHMConfig as Config
 
 
 @pytest.mark.parametrize(

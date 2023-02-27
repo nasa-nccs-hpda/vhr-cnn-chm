@@ -4,8 +4,8 @@ footprint: True
 tiles: False
 
 # Directory configurations
-data_dir: '/explore/nobackup/projects/ilab/projects/AIML_CHM/CNN_CHM/development/howland'
-model_dir: '/explore/nobackup/projects/ilab/projects/AIML_CHM/CNN_CHM/development/senegal/metadata/models/v1'
+data_dir: '/explore/nobackup/projects/ilab/projects/AIML_CHM/CNN_CHM/development/v2/howland'
+model_dir: '/explore/nobackup/projects/ilab/projects/AIML_CHM/CNN_CHM/development/v2/senegal/metadata/models/v1'
 mask_dir: '/explore/nobackup/projects/ilab/projects/Senegal/3sl/products/land_cover/dev/trees.v3'
 cloudmask_dir: '/explore/nobackup/projects/3sl/products/cloudmask/v1'
 mask_preprocessing: True
