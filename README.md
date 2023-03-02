@@ -2,6 +2,9 @@
 
 Very high-resolution CNN-based CHM
 
+
+
+[![DOI](https://zenodo.org/badge/486569079.svg)](https://zenodo.org/badge/latestdoi/486569079)
 ![CI Workflow](https://github.com/nasa-nccs-hpda/vhr-cnn-chm/actions/workflows/ci.yml/badge.svg)
 ![CI to DockerHub ](https://github.com/nasa-nccs-hpda/vhr-cnn-chm/actions/workflows/dockerhub.yml/badge.svg)
 ![Code style: PEP8](https://github.com/nasa-nccs-hpda/vhr-cnn-chm/actions/workflows/lint.yml/badge.svg)
@@ -27,14 +30,31 @@ are installed locally in the system if not using conda/mamba.
 
 ```bash
 module load singularity
-singularity build --sandbox tensorflow-caney docker://nasanccs/tensorflow-caney:latest
+singularity build --sandbox /lscratch/jacaraba/container/tensorflow-caney docker://nasanccs/tensorflow-caney:latest
 ```
 
 Example run (assuming you exposed your environment variables into the container):
 
 ```bash
-singularity exec --nv -B /lscratch,/explore/nobackup/projects/ilab,/explore/nobackup/people /explore/nobackup/projects/ilab/containers/tensorflow-caney-22.11 python /explore/nobackup/people/jacaraba/development/vhr-cnn-chm/projects/chm/scripts/preprocess.py -c /explore/nobackup/people/jacaraba/development/vhr-cnn-chm/projects/chm/configs/tanana/cnn_tanana_v1.yaml 
+singularity exec --nv -B /lscratch,/explore/nobackup/projects/ilab,/explore/nobackup/projects/3sl,/explore/nobackup/people /explore/nobackup/projects/ilab/containers/tensorflow-caney-22.11 python /explore/nobackup/people/jacaraba/development/vhr-cnn-chm/projects/chm/scripts/preprocess.py -c /explore/nobackup/people/jacaraba/development/vhr-cnn-chm/projects/chm/configs/tanana/cnn_tanana_v1.yaml 
 ```
+
+```bash
+singularity shell --nv -B /lscratch,/explore/nobackup/projects/ilab,/explore/nobackup/projects/3sl,/explore/nobackup/people /lscratch/jacaraba/container/tensorflow-caney
+export PYTHONPATH="/explore/nobackup/people/jacaraba/development/tensorflow-caney:/explore/nobackup/people/jacaraba/development/vhr-cnn-chm"
+cd $NOBACKUP/development/vhr-cnn-chm
+```
+
+
+
+
+
+singularity shell --nv -B /explore/nobackup/projects/ilab,/explore/nobackup/projects/3sl,/css/landsat,/explore/nobackup/people /lscratch/jacaraba/container/tensorflow-caney
+
+
+/explore/nobackup/projects/ilab/containers/tensorflow-caney-2022.11
+
+python cnn_regression.py -c /explore/nobackup/people/jacaraba/development/tensorflow-caney/tests/data/regression_test.yaml -d /explore/nobackup/people/jacaraba/development/tensorflow-caney/tests/data/regression_test.csv -s predict
 
 ## Configuration
 
