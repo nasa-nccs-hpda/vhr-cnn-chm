@@ -24,8 +24,8 @@ requires = [
     "xarray",
     "rioxarray",
     "numba",
+    "pygeotools @ git+https://github.com/dshean/pygeotools.git@master".
     "tensorflow-caney @ git+https://github.com/nasa-nccs-hpda/tensorflow-caney.git@main",
-    "pygeotools @ git+https://github.com/dshean/pygeotools.git@master"
 ]
 build-backend = "setuptools.build_meta"
 
